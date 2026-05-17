@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user ID card details, answers, and assigned stamps.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "department": { "type": "string" },
+        "photoUrl": { "type": "string", "description": "Base64 encoded string of the ID photo." },
+        "quizAnswers": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "assignedStamps": {
+          "type": "array",
+          "items": { "type": "string", "description": "List of stamp document IDs." }
+        },
+        "email": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role", "department", "email"]
+    },
+    "Stamp": {
+      "title": "Stamp",
+      "description": "Available stamps that can be assigned to users.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Base64 encoded image of the stamp." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "imageUrl"]
+    },
+    "Admin": {
+        "title": "Admin",
+        "description": "Stores admin UID to verify role.",
+        "type": "object",
+        "properties": {
+            "email": { "type": "string" }
+        },
+        "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User specific data and card configuration."
+    },
+    "/stamps/{stampId}": {
+      "schema": "Stamp",
+      "description": "Collection of stamps defined by the admin."
+    },
+    "/admins/{adminId}": {
+        "schema": "Admin",
+        "description": "Collection of admin users."
+    }
+  }
+}

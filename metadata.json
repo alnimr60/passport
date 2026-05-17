@@ -1,0 +1,8 @@
+{
+  "name": "Personalized ID Card Designer",
+  "description": "Create a personalized ID card, answer quiz questions, and receive stamps from the host.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

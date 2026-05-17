@@ -1,0 +1,405 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { User, signOut } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import IDCard from './IDCard';
+import { domToPng } from 'modern-screenshot';
+import { Link } from 'react-router-dom';
+import { handleFirestoreError, OperationType } from '../lib/error-handler';
+
+import { resizeImage } from '../lib/image-utils';
+
+const QUIZ_QUESTIONS = [
+  "What is the most important part of collaboration?",
+  "How do you usually handle creative blocks?",
+  "Which tool is indispensable for your daily workflow?",
+];
+
+export default function UserPage({ user }: { user: User }) {
+  const [profile, setProfile] = useState<any>(null);
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
+  const [dept, setDept] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<string[]>(['', '', '']);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
+  const [step, setStep] = useState(1); // 1: Card Details, 2: Quiz, 3: Final Card
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile(data);
+        setName(data.name || '');
+        setRole(data.role || '');
+        setDept(data.department || '');
+        setPhoto(data.photoUrl || null);
+        setQuizAnswers(data.quizAnswers || ['', '', '']);
+        if (data.name && data.role && data.department && data.photoUrl && data.quizAnswers?.every((a: string) => a.length > 0)) {
+           setStep(3);
+        }
+      }
+      setLoading(false);
+    });
+
+    const checkAdmin = async () => {
+        const adminDoc = await getDoc(doc(db, 'admins', user.uid));
+        setIsAdmin(adminDoc.exists());
+    };
+    checkAdmin();
+
+    return unsub;
+  }, [user.uid]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProcessingImage(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const resized = await resizeImage(reader.result as string);
+        setPhoto(resized);
+        setProcessingImage(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    const path = `users/${user.uid}`;
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        name,
+        role,
+        department: dept,
+        photoUrl: photo,
+        quizAnswers,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      if (step < 3) setStep(step + 1);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const downloadID = async () => {
+    if (!cardRef.current) return;
+    try {
+      const dataUrl = await domToPng(cardRef.current, {
+        scale: 3, // Higher scale for better quality
+      });
+      const link = document.createElement('a');
+      link.download = `identity_passport_${name.toLowerCase().replace(/\s+/g, '_')}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Download failed', err);
+    }
+  };
+
+  if (loading) return null;
+
+  const isProfileComplete = name && role && dept && photo && quizAnswers.every(a => a.length > 0);
+
+  return (
+    <div className="min-h-screen bg-[#f1eee1] font-serif flex flex-col overflow-x-hidden relative"
+         style={{
+           backgroundImage: `
+             linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
+             linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)
+           `,
+           backgroundSize: '100px 100px'
+         }}>
+      {/* Paper texture overlay */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-50 bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')]" />
+      
+      {/* Header */}
+      <header className="w-full p-6 sm:p-10 flex justify-between items-center border-b-2 border-slate-900/10 bg-[#f9f5e3]/90 backdrop-blur-md sticky top-0 z-30">
+        <div>
+          <h2 className="text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-0.5 sm:mb-1">State Registry</h2>
+          <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">Identity Bureau</h1>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-4">
+          {isProfileComplete && (
+            <button 
+              onClick={downloadID}
+              className="p-2.5 sm:p-3 bg-white text-slate-600 rounded shadow hover:bg-slate-50 transition-all border border-slate-200 group"
+              title="Download Document"
+            >
+              <Download size={18} className="text-[#d4af37] group-hover:scale-110 transition-transform" />
+            </button>
+          )}
+          <button 
+            onClick={() => setShowEditor(true)}
+            className="flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 bg-[#1a2d42] text-[#d4af37] rounded shadow-lg hover:bg-[#233b56] transition-all font-bold text-[10px] sm:text-sm tracking-widest uppercase border border-[#d4af37]/20"
+          >
+            <Settings size={14} className="sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Modify Record</span>
+            <span className="sm:hidden">Edit</span>
+          </button>
+          
+          <div className="hidden sm:flex items-center gap-2">
+            {isAdmin && (
+              <Link 
+                to="/admin" 
+                className="p-2.5 bg-white border border-slate-200 text-slate-500 hover:text-[#1a2d42] rounded transition-all shadow-sm"
+                title="Bureau Dashboard"
+              >
+                <LayoutDashboard size={18} />
+              </Link>
+            )}
+            <button 
+              onClick={() => signOut(auth)}
+              className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-red-800 rounded transition-all shadow-sm"
+              title="Terminate Session"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content: ID Card Focus */}
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-12 flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9, rotateX: 5 }}
+          animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+          transition={{ type: "spring", damping: 20, stiffness: 100 }}
+          className="perspective-2000 w-full flex justify-center lg:scale-[1.4] xl:scale-[1.6] 2xl:scale-[1.8] transition-transform duration-700"
+        >
+          <div ref={cardRef} className="w-full flex justify-center">
+            <IDCard 
+              name={name || "Full Name"}
+              role={role || "Your Role"}
+              dept={dept || "Department"}
+              photo={photo}
+              stamps={profile?.assignedStamps || []}
+            />
+          </div>
+        </motion.div>
+
+        {!isProfileComplete && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-24 sm:mt-32 p-8 sm:p-10 bg-[#f9f5e3] rounded-sm border-2 border-[#d4c5a0] w-full max-w-lg text-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] relative"
+          >
+            {/* Wax seal decoration */}
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-[#8b0000] rounded-full shadow-lg border-2 border-[#a52a2a] flex items-center justify-center text-[#d4af37] font-black italic">
+              B
+            </div>
+            <p className="text-[#1a2d42] font-black uppercase tracking-[0.25em] mb-6 text-sm">Application for Registry</p>
+            <p className="text-slate-600 text-xs italic mb-8 leading-relaxed">Please proceed to initialize your official documentation for archival processing.</p>
+            <button 
+              onClick={() => setShowEditor(true)}
+              className="px-12 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] transition-all uppercase tracking-[0.2em] text-xs border border-[#d4af37]/30 active:scale-95"
+            >
+              Begin Registration
+            </button>
+          </motion.div>
+        )}
+      </main>
+
+      {/* Slide-over/Overlay Editor */}
+      <AnimatePresence>
+        {showEditor && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditor(false)}
+              className="fixed inset-0 bg-[#0c131d]/60 backdrop-blur-sm z-40"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-[#fcfbf7] shadow-2xl z-50 overflow-y-auto border-l border-[#d4c5a0]"
+            >
+              <div className="p-10">
+                <header className="flex justify-between items-center mb-10 border-b border-slate-200 pb-6">
+                  <h3 className="text-xl font-bold text-slate-900 uppercase tracking-widest">Registrar's Office</h3>
+                  <button 
+                    onClick={() => setShowEditor(false)}
+                    className="p-2 text-slate-400 hover:text-slate-900 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </header>
+
+                <div className="space-y-8">
+                  {/* Step Selector */}
+                  <div className="flex gap-1 p-1 bg-slate-100 rounded border border-slate-200">
+                    <button 
+                      onClick={() => setStep(1)}
+                      className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 1 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
+                    >
+                      Vital Stats
+                    </button>
+                    <button 
+                      onClick={() => setStep(2)}
+                      className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 2 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
+                    >
+                      Examination
+                    </button>
+                    <button 
+                      onClick={() => setStep(3)}
+                      className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 3 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
+                    >
+                      Validation
+                    </button>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {step === 1 && (
+                      <motion.div
+                        key="step1"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-6"
+                      >
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Surname & Given Names</label>
+                          <input 
+                            type="text" 
+                            value={name} 
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                            placeholder="DOE, JOHN"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Designation</label>
+                            <input 
+                              type="text" 
+                              value={role} 
+                              onChange={(e) => setRole(e.target.value)}
+                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                              placeholder="ATTACHE"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Directorate</label>
+                            <input 
+                              type="text" 
+                              value={dept} 
+                              onChange={(e) => setDept(e.target.value)}
+                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                              placeholder="INTELLIGENCE"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Portraiture</label>
+                          <div className="flex items-center gap-6 p-6 bg-white rounded border border-slate-200">
+                            <div className="relative">
+                              <div className="w-16 h-20 rounded border border-slate-300 overflow-hidden bg-slate-50 grayscale">
+                                {photo ? (
+                                  <img src={photo} alt="Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                    <Camera size={24} />
+                                  </div>
+                                )}
+                              </div>
+                              <label className="absolute -bottom-2 -right-2 p-1.5 bg-[#1a2d42] text-[#d4af37] rounded-full shadow-lg cursor-pointer hover:scale-110 transition-transform">
+                                <Plus size={14} />
+                                <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                              </label>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
+                              Standard biometric portrait required. Desaturation will be applied for archival purposes.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          disabled={!name || !role || !dept || !photo || saving || processingImage}
+                          onClick={saveProfile}
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
+                        >
+                          {saving ? <Loader2 className="animate-spin text-[#d4af37]" /> : "Commit Record"}
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {step === 2 && (
+                      <motion.div
+                        key="step2"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-6"
+                      >
+                        {QUIZ_QUESTIONS.map((q, i) => (
+                          <div key={i}>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{q}</label>
+                            <textarea
+                              value={quizAnswers[i]}
+                              onChange={(e) => {
+                                const newAnswers = [...quizAnswers];
+                                newAnswers[i] = e.target.value;
+                                setQuizAnswers(newAnswers);
+                              }}
+                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all h-28 resize-none text-sm placeholder:italic placeholder:text-slate-200"
+                              placeholder="Type your official response..."
+                            />
+                          </div>
+                        ))}
+                        <button
+                          disabled={quizAnswers.some(a => !a) || saving}
+                          onClick={saveProfile}
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
+                        >
+                          {saving ? <Loader2 className="animate-spin text-[#d4af37]" /> : "Submit Examination"}
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {step === 3 && (
+                      <motion.div
+                        key="step3"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-center py-12"
+                      >
+                        <div className="w-20 h-20 bg-[#f9f5e3] text-[#1a2d42] rounded border border-[#d4af37]/30 flex items-center justify-center mx-auto mb-6 shadow-sm">
+                          <CheckCircle2 size={40} strokeWidth={1.5} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-900 uppercase tracking-widest mb-2">Record Verified</h3>
+                        <p className="text-slate-500 text-xs mb-12 px-6 leading-relaxed italic">
+                          Your identity has been successfully registered in the central archives. You may now view your official passport document.
+                        </p>
+                        <button
+                          onClick={() => setShowEditor(false)}
+                          className="px-12 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] transition-all uppercase tracking-widest text-xs border border-[#d4af37]/40"
+                        >
+                          Close Archive
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
