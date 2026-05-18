@@ -46,10 +46,10 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       {/* Outer Binding Shadow - Hidden on small mobile */}
       <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-8 h-[90%] bg-slate-900/10 rounded-full blur-xl -z-10 hidden sm:block"></div>
       
-      <div className="w-full max-w-[350px] sm:max-w-[500px] flex items-center justify-center">
+      <div className="w-full max-w-[350px] sm:max-w-[600px] flex items-center justify-center">
         <motion.div 
           layout
-          className="relative w-full h-[520px] sm:h-[380px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
+          className="relative w-full h-[560px] sm:h-[400px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
           style={{
             backgroundImage: `
               radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0),
@@ -78,9 +78,9 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               <Globe2 className="text-slate-400 w-6 h-6 sm:w-8 sm:h-8" strokeWidth={1.5} />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-5 sm:gap-8 flex-1">
-              {/* Photo - Centered on mobile */}
-              <div className="w-32 h-40 sm:w-32 sm:h-40 bg-slate-200 border-2 border-slate-300 rounded shadow-inner overflow-hidden flex-shrink-0 grayscale mx-auto sm:mx-0">
+            <div className="grid grid-cols-[140px_1fr] sm:flex sm:flex-row gap-x-4 gap-y-4 sm:gap-8 flex-1 content-start sm:content-stretch">
+              {/* Photo */}
+              <div className="col-start-1 row-start-1 row-span-2 w-[140px] h-[180px] sm:w-40 sm:h-52 bg-slate-200 border-2 border-slate-300 rounded shadow-inner overflow-hidden flex-shrink-0 grayscale">
                 {photo ? (
                   <img src={photo} alt="Passport Photo" className="w-full h-full object-cover" />
                 ) : (
@@ -91,49 +91,50 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               </div>
 
               {/* Fields */}
-              <div className="flex-1 space-y-2 sm:space-y-3 text-center sm:text-left">
-                <div>
-                  <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Surname / Given Names</p>
-                  <p className="text-sm sm:text-base font-bold text-slate-900 uppercase leading-none">{name || "SPECIMEN"}</p>
+              <div className="contents sm:flex sm:flex-1 sm:flex-col sm:justify-between sm:space-y-2 sm:pb-2 text-left">
+                
+                <div className="self-end sm:self-auto pb-1 sm:pb-0">
+                  <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Surname / Given Names</p>
+                  <p className="text-[17px] leading-[1.1] sm:text-base font-bold text-slate-900 uppercase">{name || "SPECIMEN"}</p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-2 sm:gap-4 self-start sm:self-auto">
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Nationality</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{nationality || "GLOBAL"}</p>
+                    <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Nationality</p>
+                    <p className="text-[14px] sm:text-sm font-bold text-slate-800 uppercase leading-none">{nationality || "GLOBAL"}</p>
                   </div>
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Birth Date</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{birthDate || "01/01/1970"}</p>
+                    <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Birth Date</p>
+                    <p className="text-[14px] sm:text-sm font-bold text-slate-800 uppercase leading-none">{birthDate || "01/01/1970"}</p>
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Address</p>
-                  <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none truncate max-w-[200px] sm:max-w-none">{address || "CENTRAL ARCHIVE"}</p>
+                <div className="col-span-2 sm:col-span-1 mt-3 sm:mt-0">
+                  <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Address</p>
+                  <p className="text-[14px] sm:text-sm font-bold text-slate-800 uppercase leading-none truncate w-full sm:max-w-[280px]">{address || "CENTRAL ARCHIVE"}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div className="col-span-2 sm:col-span-1 grid grid-cols-2 gap-4 mt-2 sm:mt-0">
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Faculty</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{faculty || "EXCELLENCE"}</p>
+                    <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Faculty</p>
+                    <p className="text-[14px] sm:text-sm font-bold text-slate-800 uppercase leading-none truncate">{faculty || "EXCELLENCE"}</p>
                   </div>
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Year</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{year || "I"}</p>
+                    <p className="text-[11px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5 sm:mb-0">Year</p>
+                    <p className="text-[14px] sm:text-sm font-bold text-slate-800 uppercase leading-none">{year || "I"}</p>
                   </div>
                 </div>
 
                 {/* Stamps Section (Internal to Passport) */}
-                <div className="pt-2 relative h-10 sm:h-12 flex justify-center sm:justify-start">
+                <div className="col-span-2 sm:col-span-1 pt-4 sm:pt-1 relative h-16 flex justify-start">
                    {stampImages.map((src, i) => (
                     <motion.div 
                       initial={{ scale: 0, rotate: -20, opacity: 0 }}
                       animate={{ scale: 1, rotate: (i * 15) - 30, opacity: 0.6 }}
                       key={i} 
-                      className="absolute top-0 w-8 h-8 sm:w-10 sm:h-10 pointer-events-none"
+                      className="absolute top-0 w-16 h-16 sm:w-10 sm:h-10 pointer-events-none"
                       style={{ 
-                        left: `${i * 12}px`,
+                        left: `${i * 24}px`,
                         top: `${(i % 3) * 2}px` 
                       }}
                     >
