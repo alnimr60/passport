@@ -148,15 +148,6 @@ export default function AdminPage() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{u.nationality}</p>
                     </div>
                   </div>
-                  
-                  <div className="space-y-4 mb-8 flex-1 relative z-10">
-                    <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-300 border-b border-slate-100 pb-2">Examination Record</h4>
-                    {u.quizAnswers?.map((ans: string, i: number) => (
-                      <div key={i} className="text-[10px] text-slate-600 italic leading-relaxed">
-                        <span className="text-slate-300 mr-2">Q{i+1}:</span> {ans || "PENDING"}
-                      </div>
-                    ))}
-                  </div>
 
                   <div className="pt-6 border-t border-slate-100 relative z-10">
                     <h4 className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-300 mb-4">Official Endorsements</h4>

@@ -49,7 +49,7 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       <div className="w-full max-w-[350px] sm:max-w-[600px] flex items-center justify-center">
         <motion.div 
           layout
-          className="relative w-full h-[560px] sm:h-[400px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
+          className="relative w-full h-auto min-h-[640px] sm:min-h-[440px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
           style={{
             backgroundImage: `
               radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0),
@@ -126,21 +126,52 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                 </div>
 
                 {/* Stamps Section (Internal to Passport) */}
-                <div className="col-span-2 sm:col-span-1 pt-4 sm:pt-1 relative h-16 flex justify-start">
-                   {stampImages.map((src, i) => (
-                    <motion.div 
-                      initial={{ scale: 0, rotate: -20, opacity: 0 }}
-                      animate={{ scale: 1, rotate: (i * 15) - 30, opacity: 0.6 }}
-                      key={i} 
-                      className="absolute top-0 w-16 h-16 sm:w-10 sm:h-10 pointer-events-none"
-                      style={{ 
-                        left: `${i * 24}px`,
-                        top: `${(i % 3) * 2}px` 
-                      }}
-                    >
-                      <img src={src} alt="Tax Stamp" className="w-full h-full object-contain filter hue-rotate-180 brightness-50" />
-                    </motion.div>
-                  ))}
+                <div className="col-span-2 sm:col-span-1 pt-4 sm:pt-2 relative min-h-[100px] sm:min-h-[85px]">
+                   {stampImages.map((src, i) => {
+                     // Generate a unique layout per user using name & index as seed
+                     const seedStr = (name || "ID") + i + src;
+                     let hash = 0;
+                     for(let j = 0; j < seedStr.length; j++) {
+                       hash = Math.imul(31, hash) + seedStr.charCodeAt(j) | 0;
+                     }
+                     hash = Math.abs(hash);
+
+                     // Grid-based scattering to prevent clustering
+                     const colCount = i % 4; // 4 columns max
+                     const rowCount = Math.floor(i / 4);
+
+                     // Pseudo-random offsets based on hash
+                     const randX = (hash % 100) / 100;        // 0.0 to 1.0
+                     const randY = ((hash >> 4) % 100) / 100; // 0.0 to 1.0
+                     const randRot = ((hash >> 8) % 100) / 100;
+                     const randScale = ((hash >> 12) % 100) / 100;
+                     const randOpacity = ((hash >> 16) % 100) / 100;
+
+                     // Strict grid boundaries to prevent clustering
+                     const leftOffset = (colCount * 65) + (randX * 20); // 0 to 20 variance
+                     // Prevent negative topOffset so it doesn't overlap ID text above
+                     const topOffset = (rowCount * 50) + (randY * 20); // 0 to 20 variance 
+                     
+                     const rotation = (randRot * 360) - 180; // Full 360 degree rotation
+                     const scale = 0.5 + (randScale * 0.7); // 0.5 to 1.2 size variance
+                     const opacity = 0.5 + (randOpacity * 0.45); // 0.5 to 0.95 opacity variance
+                     
+                     return (
+                      <motion.div 
+                        initial={{ scale: 0, rotate: -20, opacity: 0 }}
+                        animate={{ scale: scale, rotate: rotation, opacity: opacity }}
+                        key={src + i} 
+                        className="absolute pointer-events-none flex items-center justify-center"
+                        style={{ 
+                          left: `${leftOffset}px`,
+                          top: `${topOffset}px`,
+                          transformOrigin: '50% 50%'
+                        }}
+                      >
+                        <img src={src} alt="Stamp" className="max-w-[100px] max-h-[80px] sm:max-w-[90px] sm:max-h-[70px] w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.6] contrast-125" />
+                      </motion.div>
+                     );
+                   })}
                 </div>
               </div>
             </div>

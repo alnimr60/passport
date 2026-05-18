@@ -11,12 +11,6 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 import { resizeImage } from '../lib/image-utils';
 
-const QUIZ_QUESTIONS = [
-  "What is the most important part of collaboration?",
-  "How do you usually handle creative blocks?",
-  "Which tool is indispensable for your daily workflow?",
-];
-
 export default function UserPage({ user }: { user: User }) {
   const [profile, setProfile] = useState<any>(null);
   const [name, setName] = useState('');
@@ -26,11 +20,10 @@ export default function UserPage({ user }: { user: User }) {
   const [faculty, setFaculty] = useState('');
   const [year, setYear] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
-  const [quizAnswers, setQuizAnswers] = useState<string[]>(['', '', '']);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
-  const [step, setStep] = useState(1); // 1: Card Details, 2: Quiz, 3: Final Card
+  const [step, setStep] = useState(1); // 1: Card Details, 2: Final Card
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -48,9 +41,8 @@ export default function UserPage({ user }: { user: User }) {
         setFaculty(data.faculty || '');
         setYear(data.year || '');
         setPhoto(data.photoUrl || null);
-        setQuizAnswers(data.quizAnswers || ['', '', '']);
-        if (data.name && data.nationality && data.birthDate && data.address && data.faculty && data.year && data.photoUrl && data.quizAnswers?.every((a: string) => a.length > 0)) {
-           setStep(3);
+        if (data.name && data.nationality && data.birthDate && data.address && data.faculty && data.year && data.photoUrl) {
+           setStep(2);
         }
       }
       setLoading(false);
@@ -93,10 +85,9 @@ export default function UserPage({ user }: { user: User }) {
         faculty,
         year,
         photoUrl: photo,
-        quizAnswers,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
-      if (step < 3) setStep(step + 1);
+      if (step < 2) setStep(step + 1);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     } finally {
@@ -128,7 +119,7 @@ export default function UserPage({ user }: { user: User }) {
 
   if (loading) return null;
 
-  const isProfileComplete = name && nationality && birthDate && address && faculty && year && photo && quizAnswers.every(a => a.length > 0);
+  const isProfileComplete = name && nationality && birthDate && address && faculty && year && photo;
 
   return (
     <div className="min-h-screen bg-[#f1eee1] font-serif flex flex-col overflow-x-hidden relative"
@@ -290,12 +281,6 @@ export default function UserPage({ user }: { user: User }) {
                       onClick={() => setStep(2)}
                       className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 2 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
                     >
-                      Examination
-                    </button>
-                    <button 
-                      onClick={() => setStep(3)}
-                      className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 3 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
-                    >
                       Validation
                     </button>
                   </div>
@@ -409,39 +394,6 @@ export default function UserPage({ user }: { user: User }) {
                     {step === 2 && (
                       <motion.div
                         key="step2"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                      >
-                        {QUIZ_QUESTIONS.map((q, i) => (
-                          <div key={i}>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">{q}</label>
-                            <textarea
-                              value={quizAnswers[i]}
-                              onChange={(e) => {
-                                const newAnswers = [...quizAnswers];
-                                newAnswers[i] = e.target.value;
-                                setQuizAnswers(newAnswers);
-                              }}
-                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all h-28 resize-none text-sm placeholder:italic placeholder:text-slate-200"
-                              placeholder="Type your official response..."
-                            />
-                          </div>
-                        ))}
-                        <button
-                          disabled={quizAnswers.some(a => !a) || saving}
-                          onClick={saveProfile}
-                          className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
-                        >
-                          {saving ? <Loader2 className="animate-spin text-[#d4af37]" /> : "Submit Examination"}
-                        </button>
-                      </motion.div>
-                    )}
-
-                    {step === 3 && (
-                      <motion.div
-                        key="step3"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="text-center py-12"

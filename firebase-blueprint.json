@@ -13,10 +13,6 @@
         "faculty": { "type": "string" },
         "year": { "type": "string" },
         "photoUrl": { "type": "string", "description": "Base64 encoded string of the ID photo." },
-        "quizAnswers": { 
-          "type": "array",
-          "items": { "type": "string" }
-        },
         "assignedStamps": {
           "type": "array",
           "items": { "type": "string", "description": "List of stamp document IDs." }
