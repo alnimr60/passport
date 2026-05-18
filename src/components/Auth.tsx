@@ -15,8 +15,11 @@ export default function Auth() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      if (error.code !== 'auth/cancelled-popup-request' && error.code !== 'auth/popup-closed-by-user') {
+      if (error.code === 'auth/unauthorized-domain') {
+        alert("Domain not authorized for OAuth. Please add your Vercel URL to the 'Authorized domains' list in the Firebase Console -> Authentication -> Settings / Authorized domains.");
+      } else if (error.code !== 'auth/cancelled-popup-request' && error.code !== 'auth/popup-closed-by-user') {
         console.error('Login failed', error);
+        alert(`Login failed: ${error.message}`);
       }
     } finally {
       setLoggingIn(false);
