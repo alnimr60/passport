@@ -33,10 +33,13 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
   }, [stamps]);
 
   // Generate MRZ line
-  const nameClean = name.toUpperCase().replace(/[^A-Z]/g, '<');
-  const facultyClean = faculty.toUpperCase().replace(/[^A-Z]/g, '<');
-  const mrz1 = `P<PASSPORT<<${nameClean}<<<<<<<<<<<<<<<<<<`;
-  const mrz2 = `${(nationality.slice(0, 3) + "1234567").toUpperCase()}<<<${facultyClean}<<<<<<<<<<<`;
+  const nameClean = (name || "SPECIMEN").toUpperCase().replace(/\s+/g, '<');
+  const facultyClean = (faculty || "EXCELLENCE").toUpperCase().slice(0, 3);
+  const nationalityCode = (nationality || "GLB").toUpperCase().slice(0, 3);
+  const yearClean = (year || "I").toUpperCase();
+  
+  const mrz1 = `P<PASSPORT<<${nameClean}<<<<<<<<<<<<<<<<<<<<<<<<`.slice(0, 44);
+  const mrz2 = `${nationalityCode}1234567<<<${nationalityCode}<${yearClean}<${facultyClean}<<<<<<<<<<<<`.slice(0, 44);
 
   return (
     <div className="relative group w-full flex justify-center">
@@ -46,7 +49,7 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       <div className="w-full max-w-[350px] sm:max-w-[500px] flex items-center justify-center">
         <motion.div 
           layout
-          className="relative w-full h-[520px] sm:h-[340px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col sm:flex-row border-2 border-[#d4c5a0] font-serif transition-all"
+          className="relative w-full h-[520px] sm:h-[380px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
           style={{
             backgroundImage: `
               radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0),
@@ -65,9 +68,9 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                }}></div>
 
           {/* Info Column */}
-          <div className="flex-1 p-5 sm:p-6 relative z-10 flex flex-col">
+          <div className="flex-1 p-5 sm:p-7 relative z-10 flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-slate-900/10 pb-3 sm:pb-4 mb-4 sm:mb-4">
+            <div className="flex items-center justify-between border-b-2 border-slate-900/10 pb-3 sm:pb-4 mb-4">
               <div>
                 <h2 className="text-[7px] sm:text-[10px] font-bold tracking-[0.3em] uppercase text-slate-800">Department of Excellence</h2>
                 <h1 className="text-sm sm:text-xl font-bold uppercase text-slate-900 tracking-tight">Identity Passport</h1>
@@ -75,9 +78,9 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               <Globe2 className="text-slate-400 w-6 h-6 sm:w-8 sm:h-8" strokeWidth={1.5} />
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 flex-1">
+            <div className="flex flex-col sm:flex-row gap-5 sm:gap-8 flex-1">
               {/* Photo - Centered on mobile */}
-              <div className="w-32 h-40 sm:w-28 sm:h-36 bg-slate-200 border-2 border-slate-300 rounded shadow-inner overflow-hidden flex-shrink-0 grayscale mx-auto sm:mx-0">
+              <div className="w-32 h-40 sm:w-32 sm:h-40 bg-slate-200 border-2 border-slate-300 rounded shadow-inner overflow-hidden flex-shrink-0 grayscale mx-auto sm:mx-0">
                 {photo ? (
                   <img src={photo} alt="Passport Photo" className="w-full h-full object-cover" />
                 ) : (
@@ -88,13 +91,13 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               </div>
 
               {/* Fields */}
-              <div className="flex-1 space-y-2 sm:space-y-2 text-center sm:text-left">
+              <div className="flex-1 space-y-2 sm:space-y-3 text-center sm:text-left">
                 <div>
                   <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Surname / Given Names</p>
                   <p className="text-sm sm:text-base font-bold text-slate-900 uppercase leading-none">{name || "SPECIMEN"}</p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
                   <div>
                     <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Nationality</p>
                     <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{nationality || "GLOBAL"}</p>
@@ -110,7 +113,7 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                   <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none truncate max-w-[200px] sm:max-w-none">{address || "CENTRAL ARCHIVE"}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
                   <div>
                     <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Faculty</p>
                     <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{faculty || "EXCELLENCE"}</p>
@@ -122,17 +125,16 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                 </div>
 
                 {/* Stamps Section (Internal to Passport) */}
-                <div className="pt-2 relative h-12 sm:h-16 flex justify-center sm:justify-end">
+                <div className="pt-2 relative h-10 sm:h-12 flex justify-center sm:justify-start">
                    {stampImages.map((src, i) => (
                     <motion.div 
                       initial={{ scale: 0, rotate: -20, opacity: 0 }}
                       animate={{ scale: 1, rotate: (i * 15) - 30, opacity: 0.6 }}
                       key={i} 
-                      className="absolute top-0 w-10 h-10 sm:w-12 sm:h-12 pointer-events-none"
+                      className="absolute top-0 w-8 h-8 sm:w-10 sm:h-10 pointer-events-none"
                       style={{ 
-                        right: i % 2 === 0 ? `${i * 15}px` : 'auto',
-                        left: i % 2 !== 0 ? `${i * 15}px` : 'auto',
-                        top: `${(i % 3) * 5}px` 
+                        left: `${i * 12}px`,
+                        top: `${(i % 3) * 2}px` 
                       }}
                     >
                       <img src={src} alt="Tax Stamp" className="w-full h-full object-contain filter hue-rotate-180 brightness-50" />
@@ -142,10 +144,10 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               </div>
             </div>
 
-            {/* MRZ Zone */}
-            <div className="mt-auto font-mono text-[7px] sm:text-[10px] leading-tight text-slate-500 tracking-widest pt-4 border-t border-slate-900/5 overflow-hidden whitespace-nowrap">
-              <div className="truncate">{mrz1}</div>
-              <div className="truncate">{mrz2}</div>
+            {/* MRZ Zone - Optimized for all screens */}
+            <div className="mt-auto font-mono text-[6.5px] sm:text-[9.5px] leading-[1.1] text-slate-600 tracking-[0.15em] sm:tracking-[0.2em] pt-4 border-t border-slate-900/10 whitespace-nowrap overflow-hidden">
+              <div className="opacity-90">{mrz1}</div>
+              <div className="opacity-90">{mrz2}</div>
             </div>
           </div>
         </motion.div>
