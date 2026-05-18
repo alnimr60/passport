@@ -1,8 +1,9 @@
 {
-  apiKey: "AIzaSyClWyJZuuyKzZK_ep5hy5hDvGCS_cphbdc",
-  authDomain: "passport-98ce5.firebaseapp.com",
-  projectId: "passport-98ce5",
-  storageBucket: "passport-98ce5.firebasestorage.app",
-  messagingSenderId: "520087322673",
-  appId: "1:520087322673:web:b1a79e539dfd22c4dd9510"
+  "apiKey": "AIzaSyClWyJZuuyKzZK_ep5hy5hDvGCS_cphbdc",
+  "authDomain": "passport-98ce5.firebaseapp.com",
+  "projectId": "passport-98ce5",
+  "storageBucket": "passport-98ce5.firebasestorage.app",
+  "messagingSenderId": "520087322673",
+  "appId": "1:520087322673:web:b1a79e539dfd22c4dd9510",
+  "firestoreDatabaseId": "ai-studio-52ddc8d0-1da0-4147-953b-b64a2e2185a9"
 }
