@@ -49,8 +49,12 @@ export default function UserPage({ user }: { user: User }) {
     });
 
     const checkAdmin = async () => {
+      try {
         const adminDoc = await getDoc(doc(db, 'admins', user.uid));
         setIsAdmin(adminDoc.exists());
+      } catch (err) {
+        console.error("Failed to check admin status", err);
+      }
     };
     checkAdmin();
 

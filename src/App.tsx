@@ -17,15 +17,20 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        // Check if user is admin
-        const adminDoc = await getDoc(doc(db, 'admins', u.uid));
-        if (adminDoc.exists()) {
-          setIsAdmin(true);
-        } else if (u.email === 'alnimr60@gmail.com') {
-          // Auto-provision the first admin for the developer
-          await setDoc(doc(db, 'admins', u.uid), { email: u.email });
-          setIsAdmin(true);
-        } else {
+        try {
+          // Check if user is admin
+          const adminDoc = await getDoc(doc(db, 'admins', u.uid));
+          if (adminDoc.exists()) {
+            setIsAdmin(true);
+          } else if (u.email?.toLowerCase() === 'alnimr60@gmail.com') {
+            // Auto-provision the first admin for the developer
+            await setDoc(doc(db, 'admins', u.uid), { email: u.email, role: 'host' });
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error("Error during admin check/provisioning. Have you enabled Firestore Security Rules? ", error);
           setIsAdmin(false);
         }
       } else {
