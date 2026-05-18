@@ -17,22 +17,16 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        try {
-          // Check if user is admin
-          const adminDoc = await getDoc(doc(db, 'admins', u.uid));
-          if (adminDoc.exists()) {
-            setIsAdmin(true);
-          } else if (u.email === 'alnimr60@gmail.com') {
-            // Auto-provision the first admin for the developer
-            await setDoc(doc(db, 'admins', u.uid), { email: u.email });
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-          }
-        } catch (err) {
-          console.error("Error fetching admin status:", err);
+        // Check if user is admin
+        const adminDoc = await getDoc(doc(db, 'admins', u.uid));
+        if (adminDoc.exists()) {
+          setIsAdmin(true);
+        } else if (u.email === 'alnimr60@gmail.com') {
+          // Auto-provision the first admin for the developer
+          await setDoc(doc(db, 'admins', u.uid), { email: u.email });
+          setIsAdmin(true);
+        } else {
           setIsAdmin(false);
-          // if it fails to create the admin doc due to write permissions, we can just skip
         }
       } else {
         setIsAdmin(false);
