@@ -6,13 +6,16 @@ import { doc, getDoc } from 'firebase/firestore';
 
 interface IDCardProps {
   name: string;
-  role: string;
-  dept: string;
+  nationality: string;
+  birthDate: string;
+  address: string;
+  faculty: string;
+  year: string;
   photo: string | null;
   stamps: string[];
 }
 
-export default function IDCard({ name, role, dept, photo, stamps }: IDCardProps) {
+export default function IDCard({ name, nationality, birthDate, address, faculty, year, photo, stamps }: IDCardProps) {
   const [stampImages, setStampImages] = useState<string[]>([]);
 
   useEffect(() => {
@@ -31,9 +34,9 @@ export default function IDCard({ name, role, dept, photo, stamps }: IDCardProps)
 
   // Generate MRZ line
   const nameClean = name.toUpperCase().replace(/[^A-Z]/g, '<');
-  const roleClean = role.toUpperCase().replace(/[^A-Z]/g, '<');
+  const facultyClean = faculty.toUpperCase().replace(/[^A-Z]/g, '<');
   const mrz1 = `P<PASSPORT<<${nameClean}<<<<<<<<<<<<<<<<<<`;
-  const mrz2 = `${(dept.slice(0,3) + "1234567").toUpperCase()}<<<${roleClean}<<<<<<<<<<<`;
+  const mrz2 = `${(nationality.slice(0, 3) + "1234567").toUpperCase()}<<<${facultyClean}<<<<<<<<<<<`;
 
   return (
     <div className="relative group w-full flex justify-center">
@@ -43,28 +46,23 @@ export default function IDCard({ name, role, dept, photo, stamps }: IDCardProps)
       <div className="w-full max-w-[350px] sm:max-w-[500px] flex items-center justify-center">
         <motion.div 
           layout
-          className="relative w-full h-[520px] sm:h-[340px] rounded-lg shadow-2xl overflow-hidden flex flex-col sm:flex-row border-2 border-[#d4c5a0] font-serif transition-all"
+          className="relative w-full h-[520px] sm:h-[340px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col sm:flex-row border-2 border-[#d4c5a0] font-serif transition-all"
+          style={{
+            backgroundImage: `
+              radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0),
+              repeating-linear-gradient(45deg, rgba(212, 197, 160, 0.04) 0px, rgba(212, 197, 160, 0.04) 1px, transparent 1px, transparent 20px),
+              linear-gradient(rgba(212, 197, 160, 0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(212, 197, 160, 0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: '10px 10px, 100% 100%, 40px 40px, 40px 40px'
+          }}
         >
-          {/* Layered Background System for maximum screenshot fidelity */}
-          <div className="absolute inset-0 bg-[#f9f5e3] z-0" />
-          
-          {/* The intricate stripes (The Border) */}
+          {/* Intricate Border Decor - Safe implementation for PNG export with perfect alignment */}
           <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
                style={{ 
-                 backgroundImage: 'repeating-linear-gradient(45deg, #d4af37, #d4af37 10px, transparent 10px, transparent 20px)'
-               }} />
-          
-          {/* Inner Mask to reveal only the perimeter stripes */}
-          <div className="absolute inset-[10px] sm:inset-[16px] bg-[#f9f5e3] z-0" 
-               style={{
-                 backgroundImage: `
-                   radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0),
-                   linear-gradient(rgba(212, 197, 160, 0.1) 1px, transparent 1px),
-                   linear-gradient(90deg, rgba(212, 197, 160, 0.1) 1px, transparent 1px)
-                 `,
-                 backgroundSize: '10px 10px, 40px 40px, 40px 40px'
-               }}
-          />
+                 backgroundImage: 'repeating-linear-gradient(45deg, #d4af37, #d4af37 10px, transparent 10px, transparent 20px)',
+                 clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 12px 12px, 12px calc(100% - 12px), calc(100% - 12px) calc(100% - 12px), calc(100% - 12px) 12px, 12px 12px)'
+               }}></div>
 
           {/* Info Column */}
           <div className="flex-1 p-5 sm:p-6 relative z-10 flex flex-col">
@@ -90,19 +88,36 @@ export default function IDCard({ name, role, dept, photo, stamps }: IDCardProps)
               </div>
 
               {/* Fields */}
-              <div className="flex-1 space-y-3 sm:space-y-3 text-center sm:text-left">
+              <div className="flex-1 space-y-2 sm:space-y-2 text-center sm:text-left">
                 <div>
                   <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Surname / Given Names</p>
                   <p className="text-sm sm:text-base font-bold text-slate-900 uppercase leading-none">{name || "SPECIMEN"}</p>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Nationality / Dept</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{dept || "GLOBAL"}</p>
+                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Nationality</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{nationality || "GLOBAL"}</p>
                   </div>
                   <div>
-                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Designation / Role</p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{role || "OFFICIAL"}</p>
+                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Birth Date</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{birthDate || "01/01/1970"}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Address</p>
+                  <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none truncate max-w-[200px] sm:max-w-none">{address || "CENTRAL ARCHIVE"}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Faculty</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{faculty || "EXCELLENCE"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Year</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase leading-none">{year || "I"}</p>
                   </div>
                 </div>
 

@@ -7,8 +7,11 @@
       "properties": {
         "uid": { "type": "string" },
         "name": { "type": "string" },
-        "role": { "type": "string" },
-        "department": { "type": "string" },
+        "nationality": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "address": { "type": "string" },
+        "faculty": { "type": "string" },
+        "year": { "type": "string" },
         "photoUrl": { "type": "string", "description": "Base64 encoded string of the ID photo." },
         "quizAnswers": { 
           "type": "array",
@@ -21,7 +24,7 @@
         "email": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "name", "role", "department", "email"]
+      "required": ["uid", "name", "nationality", "birthDate", "address", "faculty", "year", "email"]
     },
     "Stamp": {
       "title": "Stamp",

@@ -144,8 +144,8 @@ export default function AdminPage() {
                     <img src={u.photoUrl} alt={u.name} className="w-16 h-20 rounded border border-slate-300 object-cover grayscale shadow-inner" />
                     <div>
                       <h3 className="font-bold text-slate-900 uppercase tracking-tight text-lg leading-tight mb-1">{u.name}</h3>
-                      <p className="text-[10px] text-blue-800 font-bold uppercase tracking-widest">{u.role}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{u.department}</p>
+                      <p className="text-[10px] text-blue-800 font-bold uppercase tracking-widest">{u.faculty} - Year {u.year}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{u.nationality}</p>
                     </div>
                   </div>
                   
@@ -215,9 +215,30 @@ export default function AdminPage() {
                   <input type="file" className="hidden" accept="image/*" onChange={handleStampUpload} />
                 </label>
                 {stampImage && (
-                  <div className="flex justify-center p-8 bg-white rounded border border-slate-50 shadow-inner">
-                    <img src={stampImage} alt="Preview" className="h-24 w-24 object-contain filter hue-rotate-180" />
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-4"
+                  >
+                    <div className="flex justify-center p-12 bg-white rounded border border-slate-200 shadow-inner relative group/preview">
+                      <div className="relative">
+                        <img 
+                          src={stampImage} 
+                          alt="Preview" 
+                          className="h-48 w-48 object-contain filter hue-rotate-180 brightness-75 contrast-125" 
+                        />
+                        <div className="absolute inset-0 border-2 border-dashed border-[#d4af37]/20 rounded-full scale-110 pointer-events-none"></div>
+                      </div>
+                      <button 
+                        onClick={() => setStampImage(null)}
+                        className="absolute top-4 right-4 p-2 bg-slate-100 text-slate-400 hover:text-red-600 rounded-full transition-colors"
+                        title="Clear image"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest">Bureau Seal Preview (Authenticity Verified)</p>
+                  </motion.div>
                 )}
                 <button 
                   disabled={!stampName || !stampImage}

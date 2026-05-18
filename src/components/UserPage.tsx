@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import IDCard from './IDCard';
-import { domToPng } from 'modern-screenshot';
+import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
@@ -20,8 +20,11 @@ const QUIZ_QUESTIONS = [
 export default function UserPage({ user }: { user: User }) {
   const [profile, setProfile] = useState<any>(null);
   const [name, setName] = useState('');
-  const [role, setRole] = useState('');
-  const [dept, setDept] = useState('');
+  const [nationality, setNationality] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [address, setAddress] = useState('');
+  const [faculty, setFaculty] = useState('');
+  const [year, setYear] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<string[]>(['', '', '']);
   const [loading, setLoading] = useState(true);
@@ -31,6 +34,7 @@ export default function UserPage({ user }: { user: User }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const downloadCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
@@ -38,11 +42,14 @@ export default function UserPage({ user }: { user: User }) {
         const data = snap.data();
         setProfile(data);
         setName(data.name || '');
-        setRole(data.role || '');
-        setDept(data.department || '');
+        setNationality(data.nationality || '');
+        setBirthDate(data.birthDate || '');
+        setAddress(data.address || '');
+        setFaculty(data.faculty || '');
+        setYear(data.year || '');
         setPhoto(data.photoUrl || null);
         setQuizAnswers(data.quizAnswers || ['', '', '']);
-        if (data.name && data.role && data.department && data.photoUrl && data.quizAnswers?.every((a: string) => a.length > 0)) {
+        if (data.name && data.nationality && data.birthDate && data.address && data.faculty && data.year && data.photoUrl && data.quizAnswers?.every((a: string) => a.length > 0)) {
            setStep(3);
         }
       }
@@ -80,8 +87,11 @@ export default function UserPage({ user }: { user: User }) {
         uid: user.uid,
         email: user.email,
         name,
-        role,
-        department: dept,
+        nationality,
+        birthDate,
+        address,
+        faculty,
+        year,
         photoUrl: photo,
         quizAnswers,
         updatedAt: new Date().toISOString(),
@@ -95,23 +105,30 @@ export default function UserPage({ user }: { user: User }) {
   };
 
   const downloadID = async () => {
-    if (!cardRef.current) return;
+    if (!downloadCardRef.current) return;
+    setSaving(true);
     try {
-      const dataUrl = await domToPng(cardRef.current, {
-        scale: 3, // Higher scale for better quality
+      const dataUrl = await toPng(downloadCardRef.current, {
+        quality: 1.0,
+        pixelRatio: 3,
+        skipFonts: true, // Skip fonts to avoid "Failed to fetch" on remote CSS
+        cacheBust: true,
       });
       const link = document.createElement('a');
       link.download = `identity_passport_${name.toLowerCase().replace(/\s+/g, '_')}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Download failed', err);
+      alert(`Failed to generate PNG: ${err.message || 'Unknown error'}. This is often caused by remote CSS restrictions in the preview. Try opening the app in a new tab.`);
+    } finally {
+      setSaving(false);
     }
   };
 
   if (loading) return null;
 
-  const isProfileComplete = name && role && dept && photo && quizAnswers.every(a => a.length > 0);
+  const isProfileComplete = name && nationality && birthDate && address && faculty && year && photo && quizAnswers.every(a => a.length > 0);
 
   return (
     <div className="min-h-screen bg-[#f1eee1] font-serif flex flex-col overflow-x-hidden relative"
@@ -171,6 +188,22 @@ export default function UserPage({ user }: { user: User }) {
         </div>
       </header>
 
+      {/* Hidden Card for Download - Ensures no scaling/perspective issues */}
+      <div className="fixed -left-[2000px] top-0 pointer-events-none" aria-hidden="true">
+        <div ref={downloadCardRef} className="w-[500px]">
+          <IDCard 
+            name={name || "Full Name"}
+            nationality={nationality || "Nationality"}
+            birthDate={birthDate || "Birth Date"}
+            address={address || "Address"}
+            faculty={faculty || "Faculty"}
+            year={year || "Year"}
+            photo={photo}
+            stamps={profile?.assignedStamps || []}
+          />
+        </div>
+      </div>
+
       {/* Main Content: ID Card Focus */}
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-12 flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
         <motion.div 
@@ -182,8 +215,11 @@ export default function UserPage({ user }: { user: User }) {
           <div ref={cardRef} className="w-full flex justify-center">
             <IDCard 
               name={name || "Full Name"}
-              role={role || "Your Role"}
-              dept={dept || "Department"}
+              nationality={nationality || "Nationality"}
+              birthDate={birthDate || "Birth Date"}
+              address={address || "Address"}
+              faculty={faculty || "Faculty"}
+              year={year || "Year"}
               photo={photo}
               stamps={profile?.assignedStamps || []}
             />
@@ -285,23 +321,55 @@ export default function UserPage({ user }: { user: User }) {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Designation</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nationality</label>
                             <input 
                               type="text" 
-                              value={role} 
-                              onChange={(e) => setRole(e.target.value)}
+                              value={nationality} 
+                              onChange={(e) => setNationality(e.target.value)}
                               className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
-                              placeholder="ATTACHE"
+                              placeholder="FRENCH"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Directorate</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Birth Date</label>
                             <input 
                               type="text" 
-                              value={dept} 
-                              onChange={(e) => setDept(e.target.value)}
+                              value={birthDate} 
+                              onChange={(e) => setBirthDate(e.target.value)}
                               className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
-                              placeholder="INTELLIGENCE"
+                              placeholder="01/01/1990"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Residential Address</label>
+                          <input 
+                            type="text" 
+                            value={address} 
+                            onChange={(e) => setAddress(e.target.value)}
+                            className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                            placeholder="123 ARCHIVE ST, BUREAU CITY"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Faculty</label>
+                            <input 
+                              type="text" 
+                              value={faculty} 
+                              onChange={(e) => setFaculty(e.target.value)}
+                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                              placeholder="MEDICINE"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Academic Year</label>
+                            <input 
+                              type="text" 
+                              value={year} 
+                              onChange={(e) => setYear(e.target.value)}
+                              className="w-full px-5 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all placeholder:text-slate-200"
+                              placeholder="4TH YEAR"
                             />
                           </div>
                         </div>
@@ -329,7 +397,7 @@ export default function UserPage({ user }: { user: User }) {
                           </div>
                         </div>
                         <button
-                          disabled={!name || !role || !dept || !photo || saving || processingImage}
+                          disabled={!name || !nationality || !birthDate || !address || !faculty || !year || !photo || saving || processingImage}
                           onClick={saveProfile}
                           className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
                         >
