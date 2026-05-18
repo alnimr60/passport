@@ -1,10 +1,8 @@
 {
-  "projectId": "durable-song-4tpfc",
-  "appId": "1:301747447906:web:fa39f13fd73f129609093b",
-  "apiKey": "AIzaSyBw8VX1MgjQxhTi-oRrHuRzJdjtFRDt9M0",
-  "authDomain": "durable-song-4tpfc.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-52ddc8d0-1da0-4147-953b-b64a2e2185a9",
-  "storageBucket": "durable-song-4tpfc.firebasestorage.app",
-  "messagingSenderId": "301747447906",
-  "measurementId": ""
+  apiKey: "AIzaSyClWyJZuuyKzZK_ep5hy5hDvGCS_cphbdc",
+  authDomain: "passport-98ce5.firebaseapp.com",
+  projectId: "passport-98ce5",
+  storageBucket: "passport-98ce5.firebasestorage.app",
+  messagingSenderId: "520087322673",
+  appId: "1:520087322673:web:b1a79e539dfd22c4dd9510"
 }
