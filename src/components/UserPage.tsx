@@ -205,7 +205,7 @@ export default function UserPage({ user }: { user: User }) {
           initial={{ opacity: 0, scale: 0.9, rotateX: 5 }}
           animate={{ opacity: 1, scale: 1, rotateX: 0 }}
           transition={{ type: "spring", damping: 20, stiffness: 100 }}
-          className="perspective-2000 w-full flex justify-center lg:scale-[1.4] xl:scale-[1.6] 2xl:scale-[1.8] transition-transform duration-700"
+          className="perspective-2000 w-full flex justify-center transition-transform duration-700"
         >
           <div ref={cardRef} className="w-full flex justify-center">
             <IDCard 
