@@ -5,7 +5,7 @@ import { Users, Plus, Trash2, ArrowLeft, Stamp as StampIcon, Check, Award, FileT
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { resizeImage } from '../lib/image-utils';
+import { resizeImage, removeBackgroundAndResize } from '../lib/image-utils';
 
 export default function AdminPage() {
   const [stampName, setStampName] = useState('');
@@ -372,8 +372,8 @@ export default function AdminPage() {
       setProcessingImage(true);
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const resized = await resizeImage(reader.result as string, 400, 400); // Badges don't need to be huge
-        setStampImage(resized);
+        const cleaned = await removeBackgroundAndResize(reader.result as string, 400, 400); // Removes background and resizes
+        setStampImage(cleaned);
         setProcessingImage(false);
       };
       reader.readAsDataURL(file);
