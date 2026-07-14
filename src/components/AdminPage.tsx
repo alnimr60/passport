@@ -1058,7 +1058,8 @@ Placeholder: Detail your motivation...`}
                   <p className="text-[9px] font-bold text-slate-600 text-center uppercase tracking-widest px-2">{s.name}</p>
                   <button 
                     onClick={() => deleteStamp(s.id)}
-                    className="absolute -top-3 -right-3 p-2 bg-red-800 text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2.5 -right-2.5 p-2 bg-red-800 hover:bg-red-950 text-white rounded shadow-md transition-all cursor-pointer z-10"
+                    title="Delete stamp"
                   >
                     <Trash2 size={12} />
                   </button>
