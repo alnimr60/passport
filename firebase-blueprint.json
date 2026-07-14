@@ -17,6 +17,10 @@
           "type": "array",
           "items": { "type": "string", "description": "List of stamp document IDs." }
         },
+        "stampPositions": {
+          "type": "object",
+          "description": "Mapping of stamp IDs to custom X/Y coordinates for desktop and mobile views."
+        },
         "email": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

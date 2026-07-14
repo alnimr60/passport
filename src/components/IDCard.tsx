@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Shield, Globe2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -13,11 +13,19 @@ interface IDCardProps {
   year: string;
   photo: string | null;
   stamps: string[];
+  stampPositions?: Record<string, {
+    desktop?: { x: number; y: number };
+    mobile?: { x: number; y: number };
+  }>;
+  onStampMove?: (stampId: string, x: number, y: number) => void;
+  activeStampId?: string | null;
+  setActiveStampId?: (id: string | null) => void;
 }
 
-export default function IDCard({ name, nationality, birthDate, address, faculty, year, photo, stamps }: IDCardProps) {
+export default function IDCard({ name, nationality, birthDate, address, faculty, year, photo, stamps, stampPositions, onStampMove, activeStampId, setActiveStampId }: IDCardProps) {
   const [stampImages, setStampImages] = useState<string[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -46,6 +54,43 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
     }
   }, [stamps]);
 
+  const handleStampDragStart = (stampId: string, event: React.PointerEvent<HTMLDivElement>) => {
+    if (!onStampMove) return;
+    
+    if (setActiveStampId) {
+      setActiveStampId(stampId);
+    }
+
+    event.preventDefault();
+    
+    const cardElement = cardRef.current;
+    if (!cardElement) return;
+    const rect = cardElement.getBoundingClientRect();
+    
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const xPx = moveEvent.clientX - rect.left;
+      const yPx = moveEvent.clientY - rect.top;
+      
+      let xPercent = Math.round((xPx / rect.width) * 100);
+      let yPercent = Math.round((yPx / rect.height) * 100);
+      
+      xPercent = Math.max(0, Math.min(100, xPercent));
+      
+      const maxTop = isMobile ? 89 : 82;
+      yPercent = Math.max(0, Math.min(maxTop, yPercent));
+      
+      onStampMove(stampId, xPercent, yPercent);
+    };
+    
+    const handlePointerUp = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+    
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
   // Generate MRZ line
   const nameClean = (name || "SPECIMEN").toUpperCase().replace(/\s+/g, '<');
   const facultyClean = (faculty || "EXCELLENCE").toUpperCase().slice(0, 3);
@@ -62,6 +107,7 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       
       <div className="w-full max-w-[350px] sm:max-w-[600px] flex items-center justify-center">
         <motion.div 
+          ref={cardRef}
           layout
           className="relative w-full h-auto min-h-[640px] sm:min-h-[440px] bg-[#f9f5e3] rounded-lg shadow-2xl overflow-hidden flex flex-col border-2 border-[#d4c5a0] font-serif transition-all"
           style={{
@@ -196,13 +242,19 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
 
               const baseSpots = isMobile ? baseSpotsMobile : baseSpotsDesktop;
 
+              const stampId = stamps[i];
+              const customPos = stampPositions?.[stampId];
+              const customDevicePos = isMobile ? customPos?.mobile : customPos?.desktop;
+
               // Pick spot by wrapping global index
               const spotIndex = i % baseSpots.length;
-              const spot = baseSpots[spotIndex];
+              const spot = customDevicePos 
+                ? { x: customDevicePos.x, y: customDevicePos.y } 
+                : baseSpots[spotIndex];
 
-              // Add deterministic jitter (offset) of +/- 3% so each user's layout is slightly unique
-              const jitterX = ((hash % 7) - 3);
-              const jitterY = (((hash >> 4) % 7) - 3);
+              // Add deterministic jitter (offset) of +/- 3% so each user's layout is slightly unique (defaults only)
+              const jitterX = customDevicePos ? 0 : ((hash % 7) - 3);
+              const jitterY = customDevicePos ? 0 : (((hash >> 4) % 7) - 3);
 
               // Pseudo-random rotation, scaling, and opacity
               // Ensure we don't declare randRot twice if it's already there
@@ -212,9 +264,16 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
 
               // Ensure stamps don't touch top-left photo zone on mobile, but otherwise have full range
               const minLeft = (isMobile && spot.y >= 46) ? 8 : 50;
-              const leftPercent = Math.max(minLeft, Math.min(92, spot.x + jitterX));
+              const leftPercent = customDevicePos 
+                ? Math.max(0, Math.min(100, spot.x)) 
+                : Math.max(minLeft, Math.min(92, spot.x + jitterX));
               const maxTop = isMobile ? 89 : 82;
-              const topPercent = Math.max(12, Math.min(maxTop, spot.y + jitterY));
+              const topPercent = customDevicePos 
+                ? Math.max(0, Math.min(100, spot.y)) 
+                : Math.max(12, Math.min(maxTop, spot.y + jitterY));
+
+              const isSelected = activeStampId === stampId;
+              const isDraggable = !!onStampMove;
 
               // Real immigration officers stamp with small natural rotations
               const rotation = (randRot * 50) - 25; // -25 to +25 degrees (realistic angle)
@@ -224,6 +283,9 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               const scale = (0.85 + (randScale * 0.2)) * sizeMultiplier;
               
               const opacity = 0.32 + (randOpacity * 0.13); // 0.32 to 0.45 opacity variance (a little more transparent)
+
+              const stampOpacity = (isSelected && isDraggable) ? 0.95 : opacity;
+              const stampScale = (isSelected && isDraggable) ? scale * 1.15 : scale;
 
               // Dynamically adjust max image sizing classes based on count
               const imgSizeClass = stampImages.length > 12 
@@ -235,20 +297,34 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               return (
                 <motion.div 
                   initial={{ scale: 0, rotate: -15, opacity: 0 }}
-                  animate={{ scale: scale, rotate: rotation, opacity: opacity }}
+                  animate={{ scale: stampScale, rotate: rotation, opacity: stampOpacity }}
                   key={src + i} 
-                  className="absolute pointer-events-none flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
+                  className={`absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 select-none touch-none ${
+                    isDraggable 
+                      ? 'pointer-events-auto cursor-grab active:cursor-grabbing hover:z-40' 
+                      : 'pointer-events-none'
+                  } ${
+                    isSelected && isDraggable 
+                      ? 'z-50 ring-2 ring-dashed ring-[#d4af37] ring-offset-2 p-1.5 bg-white/40 rounded-lg shadow-xl' 
+                      : ''
+                  }`}
                   style={{ 
                     left: `${leftPercent}%`,
                     top: `${topPercent}%`,
                     transformOrigin: '50% 50%'
                   }}
+                  onPointerDown={isDraggable ? (e) => handleStampDragStart(stampId, e) : undefined}
                 >
                   <img 
                     src={src} 
                     alt="Stamp" 
                     className={`${imgSizeClass} w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none`}
                   />
+                  {isSelected && isDraggable && (
+                    <div className="absolute -top-6 bg-[#1a2d42] text-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap uppercase tracking-widest border border-[#d4af37]/20">
+                      Drag Stamp
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

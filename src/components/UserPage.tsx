@@ -11,6 +11,28 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 
 import { resizeImage } from '../lib/image-utils';
 
+const baseSpotsDesktop = [
+  { x: 54, y: 18 }, { x: 68, y: 18 }, { x: 82, y: 18 },
+  { x: 58, y: 32 }, { x: 72, y: 32 }, { x: 86, y: 32 },
+  { x: 54, y: 46 }, { x: 68, y: 46 }, { x: 82, y: 46 },
+  { x: 58, y: 60 }, { x: 72, y: 60 }, { x: 86, y: 60 },
+  { x: 54, y: 74 }, { x: 68, y: 74 }, { x: 82, y: 74 },
+  { x: 91, y: 22 }, { x: 91, y: 40 }, { x: 91, y: 58 }, { x: 91, y: 74 },
+  { x: 62, y: 25 }, { x: 78, y: 25 }, { x: 62, y: 53 }, { x: 78, y: 53 }
+];
+
+const baseSpotsMobile = [
+  { x: 16, y: 48 }, { x: 38, y: 49 }, { x: 60, y: 48 }, { x: 82, y: 49 },
+  { x: 18, y: 58 }, { x: 42, y: 59 }, { x: 66, y: 58 }, { x: 88, y: 59 },
+  { x: 15, y: 68 }, { x: 36, y: 69 }, { x: 58, y: 68 }, { x: 80, y: 69 },
+  { x: 18, y: 78 }, { x: 40, y: 79 }, { x: 62, y: 78 }, { x: 84, y: 79 },
+  { x: 16, y: 85 }, { x: 38, y: 86 }, { x: 60, y: 85 }, { x: 82, y: 86 },
+  { x: 28, y: 53 }, { x: 72, y: 53 }, { x: 28, y: 73 }, { x: 72, y: 73 },
+  { x: 58, y: 16 }, { x: 74, y: 16 }, { x: 88, y: 16 },
+  { x: 58, y: 26 }, { x: 76, y: 26 }, { x: 90, y: 26 },
+  { x: 58, y: 36 }, { x: 74, y: 36 }, { x: 88, y: 36 }
+];
+
 export default function UserPage({ user }: { user: User }) {
   const [profile, setProfile] = useState<any>(null);
   const [name, setName] = useState('');
@@ -35,6 +57,15 @@ export default function UserPage({ user }: { user: User }) {
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [answersSaving, setAnswersSaving] = useState(false);
   const [shuffledOptions, setShuffledOptions] = useState<Record<string, string[]>>({});
+
+  const [localStampPositions, setLocalStampPositions] = useState<Record<string, {
+    desktop?: { x: number; y: number };
+    mobile?: { x: number; y: number };
+  }>>({});
+  const [userStampsDetails, setUserStampsDetails] = useState<any[]>([]);
+  const [activeStampId, setActiveStampId] = useState<string | null>(null);
+  const [activeLayoutDevice, setActiveLayoutDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [savingPositions, setSavingPositions] = useState(false);
 
   useEffect(() => {
     const newShuffled: Record<string, string[]> = {};
@@ -68,6 +99,14 @@ export default function UserPage({ user }: { user: User }) {
         if (data.quizAnswers) {
           setAnswers(data.quizAnswers || {});
         }
+        if (data.stampPositions) {
+          setLocalStampPositions(data.stampPositions);
+        } else {
+          setLocalStampPositions({});
+        }
+        if (data.assignedStamps && data.assignedStamps.length > 0) {
+          setActiveStampId(prev => prev || data.assignedStamps[0]);
+        }
         if (data.name && data.nationality && data.birthDate && data.address && data.faculty && data.year && data.photoUrl) {
            setStep(2);
         }
@@ -87,6 +126,80 @@ export default function UserPage({ user }: { user: User }) {
 
     return unsub;
   }, [user.uid]);
+
+  useEffect(() => {
+    const fetchUserStamps = async () => {
+      if (!profile?.assignedStamps || profile.assignedStamps.length === 0) {
+        setUserStampsDetails([]);
+        return;
+      }
+      const list = [];
+      for (const id of profile.assignedStamps) {
+        try {
+          const sDoc = await getDoc(doc(db, 'stamps', id));
+          if (sDoc.exists()) {
+            list.push({ id, ...sDoc.data() });
+          }
+        } catch (err) {
+          console.error("Error fetching stamp details:", err);
+        }
+      }
+      setUserStampsDetails(list);
+    };
+    fetchUserStamps();
+  }, [profile?.assignedStamps]);
+
+  const handleSliderChange = (stampId: string, axis: 'x' | 'y', value: number) => {
+    setLocalStampPositions(prev => {
+      const stampConfig = prev[stampId] || {};
+      const deviceConfig = stampConfig[activeLayoutDevice] || {};
+      
+      const activeStampIdx = profile?.assignedStamps?.indexOf(stampId) ?? 0;
+      const defaultSpots = activeLayoutDevice === 'mobile' ? baseSpotsMobile : baseSpotsDesktop;
+      const defaultSpot = defaultSpots[activeStampIdx % defaultSpots.length];
+      
+      const startX = deviceConfig.x ?? defaultSpot.x;
+      const startY = deviceConfig.y ?? defaultSpot.y;
+      
+      return {
+        ...prev,
+        [stampId]: {
+          ...stampConfig,
+          [activeLayoutDevice]: {
+            x: axis === 'x' ? value : startX,
+            y: axis === 'y' ? value : startY
+          }
+        }
+      };
+    });
+  };
+
+  const handleStampDragMove = (stampId: string, x: number, y: number) => {
+    setLocalStampPositions(prev => {
+      const stampConfig = prev[stampId] || {};
+      return {
+        ...prev,
+        [stampId]: {
+          ...stampConfig,
+          [activeLayoutDevice]: { x, y }
+        }
+      };
+    });
+  };
+
+  const handleSavePositions = async () => {
+    setSavingPositions(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        stampPositions: localStampPositions,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+    } finally {
+      setSavingPositions(false);
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'questions'), where('published', '==', true));
@@ -260,6 +373,7 @@ export default function UserPage({ user }: { user: User }) {
             year={year || "Year"}
             photo={photo}
             stamps={profile?.assignedStamps || []}
+            stampPositions={localStampPositions}
           />
         </div>
       </div>
@@ -281,7 +395,7 @@ export default function UserPage({ user }: { user: User }) {
               className={`px-6 py-2.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeView === 'questions' ? 'bg-[#1a2d42] text-[#d4af37] shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
             >
               <FileText size={12} className={activeView === 'questions' ? 'text-[#d4af37]' : ''} />
-              <span>Oversight Questionnaire</span>
+              <span>Assessment</span>
               {profile?.quizAnswers && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Submitted" />
               )}
@@ -301,7 +415,7 @@ export default function UserPage({ user }: { user: User }) {
             {/* Header */}
             <div className="text-center border-b-2 border-slate-900/10 pb-6 mb-8 relative">
               <h2 className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#1a2d42] mb-1">State Registry Department</h2>
-              <h1 className="text-xl sm:text-2xl font-bold uppercase text-slate-900 tracking-tight">Oversight Clearance Questionnaire</h1>
+              <h1 className="text-xl sm:text-2xl font-bold uppercase text-slate-900 tracking-tight">Assessment</h1>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">Official Scrutiny Ledger No. {user.uid.slice(0, 8).toUpperCase()}</p>
             </div>
 
@@ -455,6 +569,10 @@ export default function UserPage({ user }: { user: User }) {
                 year={year || "Year"}
                 photo={photo}
                 stamps={profile?.assignedStamps || []}
+                stampPositions={localStampPositions}
+                onStampMove={step === 3 ? handleStampDragMove : undefined}
+                activeStampId={step === 3 ? activeStampId : null}
+                setActiveStampId={step === 3 ? setActiveStampId : undefined}
               />
             </div>
           </motion.div>
@@ -526,6 +644,14 @@ export default function UserPage({ user }: { user: User }) {
                     >
                       Validation
                     </button>
+                    {isProfileComplete && (
+                      <button 
+                        onClick={() => setStep(3)}
+                        className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 3 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
+                      >
+                        Stamp Placer
+                      </button>
+                    )}
                   </div>
 
                   <AnimatePresence mode="wait">
@@ -654,6 +780,217 @@ export default function UserPage({ user }: { user: User }) {
                         >
                           Close Archive
                         </button>
+                      </motion.div>
+                    )}
+
+                    {step === 3 && isProfileComplete && (
+                      <motion.div
+                        key="step3"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-6"
+                      >
+                        <div>
+                          <h4 className="text-sm font-bold text-[#1a2d42] uppercase tracking-wider mb-1">Stamp Position Control</h4>
+                          <p className="text-[10px] text-slate-400 italic">Adjust horizontal and vertical coordinate parameters of your assigned stamps.</p>
+                          <div className="mt-3 bg-[#fdfaf2] border border-[#d4af37]/30 rounded p-2 text-[9px] text-[#9a7d28] flex items-start gap-1.5 leading-normal">
+                            <span className="text-[11px] leading-none">💡</span>
+                            <div>
+                              <span className="font-bold uppercase tracking-wider block text-[8px] mb-0.5">Interactive Canvas Active</span>
+                              Click and drag any stamp directly on the passport card layout to reposition it seamlessly!
+                            </div>
+                          </div>
+                        </div>
+
+                        {userStampsDetails.length === 0 ? (
+                          <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded p-6">
+                            <HelpCircle size={32} className="mx-auto text-slate-300 mb-2" />
+                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">No Assigned Stamps</p>
+                            <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">No official clearance stamps have been assigned to your record by the administration. Ask an admin to assign stamps to configure their placement.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">1. Select Stamp</label>
+                              <div className="grid grid-cols-4 gap-2">
+                                {userStampsDetails.map((stamp) => {
+                                  const isSelected = activeStampId === stamp.id;
+                                  return (
+                                    <button
+                                      key={stamp.id}
+                                      type="button"
+                                      onClick={() => setActiveStampId(stamp.id)}
+                                      className={`p-2 rounded border flex flex-col items-center justify-center transition-all ${
+                                        isSelected 
+                                          ? 'border-[#d4af37] bg-[#fdfaf2] ring-1 ring-[#d4af37]' 
+                                          : 'border-slate-200 bg-white hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <img 
+                                        src={stamp.imageUrl} 
+                                        alt={stamp.name} 
+                                        className={`w-8 h-8 object-contain transition-all ${isSelected ? '' : 'opacity-60'}`}
+                                      />
+                                      <span className="text-[8px] font-bold text-slate-500 mt-1 truncate w-full text-center">
+                                        {stamp.name}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">2. Target Device View</label>
+                              <div className="flex gap-1 p-1 bg-slate-100 rounded border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveLayoutDevice('desktop')}
+                                  className={`flex-1 py-1.5 text-[9px] font-bold rounded transition-all uppercase tracking-wider ${
+                                    activeLayoutDevice === 'desktop' 
+                                      ? 'bg-white shadow text-[#1a2d42]' 
+                                      : 'text-slate-400'
+                                  }`}
+                                >
+                                  Desktop Layout
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveLayoutDevice('mobile')}
+                                  className={`flex-1 py-1.5 text-[9px] font-bold rounded transition-all uppercase tracking-wider ${
+                                    activeLayoutDevice === 'mobile' 
+                                      ? 'bg-white shadow text-[#1a2d42]' 
+                                      : 'text-slate-400'
+                                  }`}
+                                >
+                                  Mobile Layout
+                                </button>
+                              </div>
+                            </div>
+
+                            {(() => {
+                              const activeStampIdx = profile?.assignedStamps?.indexOf(activeStampId) ?? 0;
+                              const defaultSpots = activeLayoutDevice === 'mobile' ? baseSpotsMobile : baseSpotsDesktop;
+                              const defaultSpot = defaultSpots[activeStampIdx % defaultSpots.length];
+
+                              const currentStampConfig = localStampPositions[activeStampId || '']?.[activeLayoutDevice];
+                              const currentX = currentStampConfig?.x ?? defaultSpot.x;
+                              const currentY = currentStampConfig?.y ?? defaultSpot.y;
+                              const isCustomized = !!currentStampConfig;
+
+                              return (
+                                <div className="space-y-6">
+                                  <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Coordinate Configuration</label>
+                                      <span className={`text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                        isCustomized ? 'bg-[#fdfaf2] text-[#d4af37] border border-[#d4af37]/20' : 'bg-slate-100 text-slate-400'
+                                      }`}>
+                                        {isCustomized ? 'Customized' : 'Default Auto'}
+                                      </span>
+                                    </div>
+
+                                    {/* X Slider */}
+                                    <div className="bg-white p-4 rounded border border-slate-200 space-y-2">
+                                      <div className="flex justify-between text-[10px] font-bold text-slate-600">
+                                        <span>HORIZONTAL POSITION (X)</span>
+                                        <span className="font-mono text-slate-400">{currentX}%</span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min="5"
+                                        max="95"
+                                        value={currentX}
+                                        onChange={(e) => handleSliderChange(activeStampId!, 'x', parseInt(e.target.value))}
+                                        className="w-full accent-[#1a2d42] h-1 bg-slate-100 rounded-lg cursor-pointer"
+                                      />
+                                      <div className="flex justify-between text-[8px] text-slate-400 font-medium font-mono">
+                                        <span>LEFT</span>
+                                        <span>RIGHT</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Y Slider */}
+                                    <div className="bg-white p-4 rounded border border-slate-200 space-y-2">
+                                      <div className="flex justify-between text-[10px] font-bold text-slate-600">
+                                        <span>VERTICAL POSITION (Y)</span>
+                                        <span className="font-mono text-slate-400">{currentY}%</span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min="12"
+                                        max={activeLayoutDevice === 'mobile' ? 89 : 82}
+                                        value={currentY}
+                                        onChange={(e) => handleSliderChange(activeStampId!, 'y', parseInt(e.target.value))}
+                                        className="w-full accent-[#1a2d42] h-1 bg-slate-100 rounded-lg cursor-pointer"
+                                      />
+                                      <div className="flex justify-between text-[8px] text-slate-400 font-medium font-mono">
+                                        <span>TOP</span>
+                                        <span>BOTTOM</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-3">
+                                    {isCustomized && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setLocalStampPositions(prev => {
+                                            const next = { ...prev };
+                                            if (next[activeStampId!]) {
+                                              const copy = { ...next[activeStampId!] };
+                                              delete copy[activeLayoutDevice];
+                                              if (Object.keys(copy).length === 0) {
+                                                delete next[activeStampId!];
+                                              } else {
+                                                next[activeStampId!] = copy;
+                                              }
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                        className="flex-1 py-3 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                                      >
+                                        Reset Stamp
+                                      </button>
+                                    )}
+                                    {Object.keys(localStampPositions).length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm("Reset all stamp custom positions to their defaults?")) {
+                                            setLocalStampPositions({});
+                                          }
+                                        }}
+                                        className="flex-1 py-3 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                                      >
+                                        Reset All
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    disabled={savingPositions}
+                                    onClick={handleSavePositions}
+                                    className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
+                                  >
+                                    {savingPositions ? (
+                                      <Loader2 className="animate-spin text-[#d4af37]" />
+                                    ) : (
+                                      <>
+                                        <Save size={14} />
+                                        Save Layout Coordinates
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
