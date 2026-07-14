@@ -250,7 +250,7 @@ export default function UserPage({ user }: { user: User }) {
 
       {/* Hidden Card for Download - Ensures no scaling/perspective issues */}
       <div className="fixed -left-[2000px] top-0 pointer-events-none" aria-hidden="true">
-        <div ref={downloadCardRef} className="w-[600px]">
+        <div ref={downloadCardRef} className="w-[880px]">
           <IDCard 
             name={name || "Full Name"}
             nationality={nationality || "Nationality"}
