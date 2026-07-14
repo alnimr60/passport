@@ -41,6 +41,25 @@
             "email": { "type": "string" }
         },
         "required": ["email"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Official registry clearance questions managed by admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "question": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "textarea", "select"] },
+        "placeholder": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["label", "question", "type", "published"]
     }
   },
   "firestore": {
@@ -53,8 +72,12 @@
       "description": "Collection of stamps defined by the admin."
     },
     "/admins/{adminId}": {
-        "schema": "Admin",
-        "description": "Collection of admin users."
+      "schema": "Admin",
+      "description": "Collection of admin users."
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Collection of official clearance questions."
     }
   }
 }

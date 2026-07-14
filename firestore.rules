@@ -16,7 +16,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'alnimr60@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isDeveloper() {
+      return isSignedIn() && request.auth.token.email.lower() == 'alnimr60@gmail.com';
     }
 
     function isValidId(id) {
@@ -39,7 +46,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) 
                     && isValidId(userId)
                     && incoming().uid == request.auth.uid
-                    && incoming().email == request.auth.token.email
+                    && incoming().email.lower() == request.auth.token.email.lower()
                     && request.auth.token.email_verified == true
                     && (!('assignedStamps' in incoming()) || incoming().assignedStamps.size() == 0)
                     && incoming().name is string && incoming().name.size() <= 100
@@ -51,7 +58,7 @@ service cloud.firestore {
                     && (incoming().photoUrl == null || (incoming().photoUrl is string && incoming().photoUrl.size() <= 2000000));
 
       allow update: if (isOwner(userId) && (
-                        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'nationality', 'birthDate', 'address', 'faculty', 'year', 'photoUrl', 'updatedAt'])
+                        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'nationality', 'birthDate', 'address', 'faculty', 'year', 'photoUrl', 'quizAnswers', 'updatedAt'])
                         && incoming().name is string && incoming().name.size() <= 100
                         && incoming().nationality is string && incoming().nationality.size() <= 100
                         && (incoming().photoUrl == null || (incoming().photoUrl is string && incoming().photoUrl.size() <= 2000000))
@@ -67,12 +74,17 @@ service cloud.firestore {
       allow write: if isAdmin() && isValidId(stampId);
     }
 
+    // --- Questions Collection ---
+    match /questions/{questionId} {
+      allow read: if isSignedIn() && (resource.data.published == true || isAdmin());
+      allow write: if isAdmin() && isValidId(questionId);
+    }
+
     // --- Admins Collection ---
     match /admins/{adminId} {
-      allow read: if isSignedIn() && isOwner(adminId);
-      // Allow the developer to bootstrap themselves as admin
-      allow create: if isSignedIn() && isOwner(adminId) && request.auth.token.email == 'alnimr60@gmail.com';
-      allow update, delete: if false;
+      allow read: if isSignedIn() && (isOwner(adminId) || isAdmin());
+      // Allow the developer to bootstrap themselves as admin, and existing admins to manage hosts
+      allow write: if (isSignedIn() && isOwner(adminId) && request.auth.token.email == 'alnimr60@gmail.com') || isAdmin();
     }
   }
 }

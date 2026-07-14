@@ -1,10 +1,10 @@
 {
-  "projectId": "durable-song-4tpfc",
-  "appId": "1:301747447906:web:fa39f13fd73f129609093b",
-  "apiKey": "AIzaSyBw8VX1MgjQxhTi-oRrHuRzJdjtFRDt9M0",
-  "authDomain": "durable-song-4tpfc.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-52ddc8d0-1da0-4147-953b-b64a2e2185a9",
-  "storageBucket": "durable-song-4tpfc.firebasestorage.app",
-  "messagingSenderId": "301747447906",
+  "projectId": "passport-game-321c5",
+  "appId": "1:608965389229:web:efa384ef1a0694c1868f24",
+  "apiKey": "AIzaSyDILzw9HRIcfe4VPiyafAzeVbw2WcyPN5Y",
+  "authDomain": "passport-game-321c5.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "passport-game-321c5.firebasestorage.app",
+  "messagingSenderId": "608965389229",
   "measurementId": ""
 }

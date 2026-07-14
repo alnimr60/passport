@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download } from 'lucide-react';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download, FileText, HelpCircle, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import IDCard from './IDCard';
 import { toPng } from 'html-to-image';
@@ -29,6 +29,12 @@ export default function UserPage({ user }: { user: User }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const downloadCardRef = useRef<HTMLDivElement>(null);
 
+  const [activeView, setActiveView] = useState<'passport' | 'questions'>('passport');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [answersSaving, setAnswersSaving] = useState(false);
+
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
       if (snap.exists()) {
@@ -41,6 +47,9 @@ export default function UserPage({ user }: { user: User }) {
         setFaculty(data.faculty || '');
         setYear(data.year || '');
         setPhoto(data.photoUrl || null);
+        if (data.quizAnswers) {
+          setAnswers(data.quizAnswers || {});
+        }
         if (data.name && data.nationality && data.birthDate && data.address && data.faculty && data.year && data.photoUrl) {
            setStep(2);
         }
@@ -60,6 +69,21 @@ export default function UserPage({ user }: { user: User }) {
 
     return unsub;
   }, [user.uid]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'questions'), where('published', '==', true));
+    const unsubQuestions = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      list.sort((a: any, b: any) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+      setQuestions(list);
+      setQuestionsLoading(false);
+    }, (error) => {
+      console.error("Error listening to published questions:", error);
+      setQuestionsLoading(false);
+    });
+
+    return () => unsubQuestions();
+  }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -121,6 +145,21 @@ export default function UserPage({ user }: { user: User }) {
     }
   };
 
+  const saveAnswers = async () => {
+    setAnswersSaving(true);
+    const path = `users/${user.uid}`;
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        quizAnswers: answers,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } finally {
+      setAnswersSaving(false);
+    }
+  };
+
   if (loading) return null;
 
   const isProfileComplete = name && nationality && birthDate && address && faculty && year && photo;
@@ -162,22 +201,22 @@ export default function UserPage({ user }: { user: User }) {
             <span className="sm:hidden">Edit</span>
           </button>
           
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {isAdmin && (
               <Link 
                 to="/admin" 
-                className="p-2.5 bg-white border border-slate-200 text-slate-500 hover:text-[#1a2d42] rounded transition-all shadow-sm"
+                className="p-2 sm:p-2.5 bg-white border border-slate-200 text-slate-500 hover:text-[#1a2d42] rounded transition-all shadow-sm flex items-center justify-center"
                 title="Bureau Dashboard"
               >
-                <LayoutDashboard size={18} />
+                <LayoutDashboard size={16} className="sm:w-[18px] sm:h-[18px]" />
               </Link>
             )}
             <button 
               onClick={() => signOut(auth)}
-              className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-red-800 rounded transition-all shadow-sm"
+              className="p-2 sm:p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-red-800 rounded transition-all shadow-sm flex items-center justify-center"
               title="Terminate Session"
             >
-              <LogOut size={18} />
+              <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </div>
         </div>
@@ -201,25 +240,145 @@ export default function UserPage({ user }: { user: User }) {
 
       {/* Main Content: ID Card Focus */}
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-12 flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9, rotateX: 5 }}
-          animate={{ opacity: 1, scale: 1, rotateX: 0 }}
-          transition={{ type: "spring", damping: 20, stiffness: 100 }}
-          className="perspective-2000 w-full flex justify-center transition-transform duration-700"
-        >
-          <div ref={cardRef} className="w-full flex justify-center">
-            <IDCard 
-              name={name || "Full Name"}
-              nationality={nationality || "Nationality"}
-              birthDate={birthDate || "Birth Date"}
-              address={address || "Address"}
-              faculty={faculty || "Faculty"}
-              year={year || "Year"}
-              photo={photo}
-              stamps={profile?.assignedStamps || []}
-            />
+        
+        {isProfileComplete && (
+          <div className="flex gap-2 mb-10 bg-[#f9f5e3]/80 backdrop-blur-md p-1.5 rounded border border-slate-900/10 shadow-sm relative z-20">
+            <button 
+              onClick={() => setActiveView('passport')}
+              className={`px-6 py-2.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeView === 'passport' ? 'bg-[#1a2d42] text-[#d4af37] shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              <Shield size={12} className={activeView === 'passport' ? 'text-[#d4af37]' : ''} />
+              <span>Official Passport</span>
+            </button>
+            <button 
+              onClick={() => setActiveView('questions')}
+              className={`px-6 py-2.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeView === 'questions' ? 'bg-[#1a2d42] text-[#d4af37] shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              <FileText size={12} className={activeView === 'questions' ? 'text-[#d4af37]' : ''} />
+              <span>Oversight Questionnaire</span>
+              {profile?.quizAnswers && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Submitted" />
+              )}
+            </button>
           </div>
-        </motion.div>
+        )}
+
+        {isProfileComplete && activeView === 'questions' ? (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-2xl bg-[#fcfbf7] rounded border-2 border-[#d4c5a0] p-8 sm:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.08)] relative overflow-hidden font-serif"
+          >
+            {/* Fine watermark background pattern */}
+            <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.4) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+            
+            {/* Header */}
+            <div className="text-center border-b-2 border-slate-900/10 pb-6 mb-8 relative">
+              <h2 className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#1a2d42] mb-1">State Registry Department</h2>
+              <h1 className="text-xl sm:text-2xl font-bold uppercase text-slate-900 tracking-tight">Oversight Clearance Questionnaire</h1>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">Official Scrutiny Ledger No. {user.uid.slice(0, 8).toUpperCase()}</p>
+            </div>
+
+            <p className="text-xs text-slate-600 italic mb-8 leading-relaxed text-center">
+              Please complete the following inquiries with absolute fidelity. Your statements will be preserved within the permanent registry archives and evaluated by bureau hosts for stamp eligibility.
+            </p>
+
+            <div className="space-y-8 relative">
+              {questionsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Loader2 size={24} className="animate-spin mb-2" />
+                  <span className="text-xs uppercase tracking-widest font-mono">Retrieving Inquiries...</span>
+                </div>
+              ) : questions.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-slate-200 rounded">
+                  <p className="text-sm text-slate-500 italic">No official clearance questions have been published yet.</p>
+                </div>
+              ) : (
+                questions.map((q) => (
+                  <div key={q.id} className="space-y-2 border-b border-slate-100 pb-6 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-baseline gap-4">
+                      <span className="text-[10px] font-mono uppercase text-[#d4af37] font-bold tracking-wider">{q.label}</span>
+                      <span className="text-[9px] font-mono text-slate-400 uppercase">Field Ref: {q.id.toUpperCase().slice(0, 8)}</span>
+                    </div>
+                    <label className="block text-sm font-bold text-slate-900 leading-tight mb-2 text-left">
+                      {q.question}
+                    </label>
+                    
+                    {q.type === 'select' ? (
+                      <select
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm font-sans"
+                      >
+                        <option value="">-- SELECT RESPONSE --</option>
+                        {q.options?.map((opt: string) => (
+                          <option key={opt} value={opt}>{opt.toUpperCase()}</option>
+                        ))}
+                      </select>
+                    ) : q.type === 'textarea' ? (
+                      <textarea
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        rows={3}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans resize-none"
+                        placeholder={q.placeholder}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans"
+                        placeholder={q.placeholder}
+                      />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-10 pt-6 border-t border-slate-900/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono uppercase">
+                <FileText size={14} className="text-[#d4af37]" />
+                <span>ARCHIVAL DOCUMENT PENDING COMMIT</span>
+              </div>
+              <button
+                onClick={saveAnswers}
+                disabled={answersSaving || questionsLoading || questions.length === 0 || questions.some(q => !answers[q.id]?.trim())}
+                className="w-full sm:w-auto px-8 py-3.5 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-lg hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20 flex items-center justify-center gap-2"
+              >
+                {answersSaving ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Recording...</span>
+                  </>
+                ) : (
+                  <span>Commit Answers to Ledger</span>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        ) : isProfileComplete ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, rotateX: 5 }}
+            animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 100 }}
+            className="perspective-2000 w-full flex justify-center transition-transform duration-700"
+          >
+            <div ref={cardRef} className="w-full flex justify-center">
+              <IDCard 
+                name={name || "Full Name"}
+                nationality={nationality || "Nationality"}
+                birthDate={birthDate || "Birth Date"}
+                address={address || "Address"}
+                faculty={faculty || "Faculty"}
+                year={year || "Year"}
+                photo={photo}
+                stamps={profile?.assignedStamps || []}
+              />
+            </div>
+          </motion.div>
+        ) : null}
 
         {!isProfileComplete && (
           <motion.div 
