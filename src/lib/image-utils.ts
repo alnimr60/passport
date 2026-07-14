@@ -155,6 +155,27 @@ export function removeBackgroundAndResize(
               const ratio = (minMatchedDist - (threshold - 15)) / 15;
               data[i + 3] = Math.floor(a * ratio);
             }
+          } else {
+            // This is an ink pixel! Apply physical rubber stamp rendering effects:
+            // 1. Calculate pixel coordinates
+            const pixelIdx = i / 4;
+            const x = pixelIdx % width;
+            const y = Math.floor(pixelIdx / width);
+
+            // 2. Generate multi-frequency wave noise to simulate uneven stamp pressure/bleeding
+            const fineNoise = Math.sin(x * 0.4) * Math.cos(y * 0.4) * 0.12;
+            const coarseNoise = Math.sin(x * 0.06) * Math.sin(y * 0.06) * 0.08;
+            
+            // 3. Add random micro-skips/speckle where ink failed to transfer to paper fibers
+            const speckle = Math.random() < 0.05 ? -0.35 : 0.0;
+
+            // 4. Combine into stamp opacity multiplier (average around 55% opacity)
+            let stampOpacity = 0.55 + fineNoise + coarseNoise + speckle;
+            
+            // Clamp stamp opacity to keep it looking realistic (not too invisible, not solid plastic)
+            stampOpacity = Math.max(0.25, Math.min(0.75, stampOpacity));
+
+            data[i + 3] = Math.floor(a * stampOpacity);
           }
         }
 

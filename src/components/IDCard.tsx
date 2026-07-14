@@ -17,6 +17,16 @@ interface IDCardProps {
 
 export default function IDCard({ name, nationality, birthDate, address, faculty, year, photo, stamps }: IDCardProps) {
   const [stampImages, setStampImages] = useState<string[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchStamps = async () => {
@@ -29,7 +39,11 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       }
       setStampImages(images);
     };
-    if (stamps.length > 0) fetchStamps();
+    if (stamps.length > 0) {
+      fetchStamps();
+    } else {
+      setStampImages([]);
+    }
   }, [stamps]);
 
   // Generate MRZ line
@@ -125,54 +139,6 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                   </div>
                 </div>
 
-                {/* Stamps Section (Internal to Passport) */}
-                <div className="col-span-2 sm:col-span-1 pt-4 sm:pt-2 relative min-h-[100px] sm:min-h-[85px]">
-                   {stampImages.map((src, i) => {
-                     // Generate a unique layout per user using name & index as seed
-                     const seedStr = (name || "ID") + i + src;
-                     let hash = 0;
-                     for(let j = 0; j < seedStr.length; j++) {
-                       hash = Math.imul(31, hash) + seedStr.charCodeAt(j) | 0;
-                     }
-                     hash = Math.abs(hash);
-
-                     // Grid-based scattering to prevent clustering
-                     const colCount = i % 4; // 4 columns max
-                     const rowCount = Math.floor(i / 4);
-
-                     // Pseudo-random offsets based on hash
-                     const randX = (hash % 100) / 100;        // 0.0 to 1.0
-                     const randY = ((hash >> 4) % 100) / 100; // 0.0 to 1.0
-                     const randRot = ((hash >> 8) % 100) / 100;
-                     const randScale = ((hash >> 12) % 100) / 100;
-                     const randOpacity = ((hash >> 16) % 100) / 100;
-
-                     // Strict grid boundaries to prevent clustering
-                     const leftOffset = (colCount * 65) + (randX * 20); // 0 to 20 variance
-                     // Prevent negative topOffset so it doesn't overlap ID text above
-                     const topOffset = (rowCount * 50) + (randY * 20); // 0 to 20 variance 
-                     
-                     const rotation = (randRot * 360) - 180; // Full 360 degree rotation
-                     const scale = 0.5 + (randScale * 0.7); // 0.5 to 1.2 size variance
-                     const opacity = 0.5 + (randOpacity * 0.45); // 0.5 to 0.95 opacity variance
-                     
-                     return (
-                      <motion.div 
-                        initial={{ scale: 0, rotate: -20, opacity: 0 }}
-                        animate={{ scale: scale, rotate: rotation, opacity: opacity }}
-                        key={src + i} 
-                        className="absolute pointer-events-none flex items-center justify-center"
-                        style={{ 
-                          left: `${leftOffset}px`,
-                          top: `${topOffset}px`,
-                          transformOrigin: '50% 50%'
-                        }}
-                      >
-                        <img src={src} alt="Stamp" className="max-w-[100px] max-h-[80px] sm:max-w-[90px] sm:max-h-[70px] w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.6] contrast-125" />
-                      </motion.div>
-                     );
-                   })}
-                </div>
               </div>
             </div>
 
@@ -181,6 +147,111 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               <div className="opacity-90">{mrz1}</div>
               <div className="opacity-90">{mrz2}</div>
             </div>
+          </div>
+
+          {/* Stamps Overlay (Beautifully and realistically distributed across the entire passport page) */}
+          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+            {stampImages.map((src, i) => {
+              // Generate a unique layout per user using name & index as seed
+              const seedStr = (name || "ID") + i + src;
+              let hash = 0;
+              for (let j = 0; j < seedStr.length; j++) {
+                hash = Math.imul(31, hash) + seedStr.charCodeAt(j) | 0;
+              }
+              hash = Math.abs(hash);
+
+              // 24 strategic, balanced spots strictly in the right-hand area (avoiding the left photo zone)
+              const baseSpotsDesktop = [
+                { x: 54, y: 18 }, { x: 68, y: 18 }, { x: 82, y: 18 },
+                { x: 58, y: 32 }, { x: 72, y: 32 }, { x: 86, y: 32 },
+                { x: 54, y: 46 }, { x: 68, y: 46 }, { x: 82, y: 46 },
+                { x: 58, y: 60 }, { x: 72, y: 60 }, { x: 86, y: 60 },
+                { x: 54, y: 74 }, { x: 68, y: 74 }, { x: 82, y: 74 },
+                { x: 91, y: 22 }, { x: 91, y: 40 }, { x: 91, y: 58 }, { x: 91, y: 74 },
+                { x: 62, y: 25 }, { x: 78, y: 25 }, { x: 62, y: 53 }, { x: 78, y: 53 }
+              ];
+
+              // Beautifully balanced mobile spots distributing stamps across full width below the photo and fields
+              const baseSpotsMobile = [
+                // Below photo & fields - completely empty bottom area of the passport (y = 48% to 86%)
+                // Row 1 (y = 48% - full width)
+                { x: 16, y: 48 }, { x: 38, y: 49 }, { x: 60, y: 48 }, { x: 82, y: 49 },
+                // Row 2 (y = 58% - full width)
+                { x: 18, y: 58 }, { x: 42, y: 59 }, { x: 66, y: 58 }, { x: 88, y: 59 },
+                // Row 3 (y = 68% - full width)
+                { x: 15, y: 68 }, { x: 36, y: 69 }, { x: 58, y: 68 }, { x: 80, y: 69 },
+                // Row 4 (y = 78% - full width)
+                { x: 18, y: 78 }, { x: 40, y: 79 }, { x: 62, y: 78 }, { x: 84, y: 79 },
+                // Row 5 (y = 85% - full width, just above MRZ)
+                { x: 16, y: 85 }, { x: 38, y: 86 }, { x: 60, y: 85 }, { x: 82, y: 86 },
+
+                // Filler gaps in bottom area
+                { x: 28, y: 53 }, { x: 72, y: 53 }, { x: 28, y: 73 }, { x: 72, y: 73 },
+
+                // Right of the photo area (y < 46%, x >= 50%) - used as overflow
+                { x: 58, y: 16 }, { x: 74, y: 16 }, { x: 88, y: 16 },
+                { x: 58, y: 26 }, { x: 76, y: 26 }, { x: 90, y: 26 },
+                { x: 58, y: 36 }, { x: 74, y: 36 }, { x: 88, y: 36 }
+              ];
+
+              const baseSpots = isMobile ? baseSpotsMobile : baseSpotsDesktop;
+
+              // Pick spot by wrapping global index
+              const spotIndex = i % baseSpots.length;
+              const spot = baseSpots[spotIndex];
+
+              // Add deterministic jitter (offset) of +/- 3% so each user's layout is slightly unique
+              const jitterX = ((hash % 7) - 3);
+              const jitterY = (((hash >> 4) % 7) - 3);
+
+              // Pseudo-random rotation, scaling, and opacity
+              // Ensure we don't declare randRot twice if it's already there
+              const randRot = ((hash >> 8) % 100) / 100;
+              const randScale = ((hash >> 12) % 100) / 100;
+              const randOpacity = ((hash >> 16) % 100) / 100;
+
+              // Ensure stamps don't touch top-left photo zone on mobile, but otherwise have full range
+              const minLeft = (isMobile && spot.y >= 46) ? 8 : 50;
+              const leftPercent = Math.max(minLeft, Math.min(92, spot.x + jitterX));
+              const maxTop = isMobile ? 89 : 82;
+              const topPercent = Math.max(12, Math.min(maxTop, spot.y + jitterY));
+
+              // Real immigration officers stamp with small natural rotations
+              const rotation = (randRot * 50) - 25; // -25 to +25 degrees (realistic angle)
+              
+              // Scale dynamically based on the total stamp count to avoid massive overlap
+              const sizeMultiplier = stampImages.length > 12 ? 0.65 : (stampImages.length > 8 ? 0.8 : 1.0);
+              const scale = (0.85 + (randScale * 0.2)) * sizeMultiplier;
+              
+              const opacity = 0.32 + (randOpacity * 0.13); // 0.32 to 0.45 opacity variance (a little more transparent)
+
+              // Dynamically adjust max image sizing classes based on count
+              const imgSizeClass = stampImages.length > 12 
+                ? "max-w-[65px] max-h-[50px] sm:max-w-[85px] sm:max-h-[70px]" 
+                : stampImages.length > 8 
+                  ? "max-w-[75px] max-h-[60px] sm:max-w-[100px] sm:max-h-[85px]" 
+                  : "max-w-[90px] max-h-[75px] sm:max-w-[125px] sm:max-h-[105px]";
+
+              return (
+                <motion.div 
+                  initial={{ scale: 0, rotate: -15, opacity: 0 }}
+                  animate={{ scale: scale, rotate: rotation, opacity: opacity }}
+                  key={src + i} 
+                  className="absolute pointer-events-none flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
+                  style={{ 
+                    left: `${leftPercent}%`,
+                    top: `${topPercent}%`,
+                    transformOrigin: '50% 50%'
+                  }}
+                >
+                  <img 
+                    src={src} 
+                    alt="Stamp" 
+                    className={`${imgSizeClass} w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none`}
+                  />
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       </div>
