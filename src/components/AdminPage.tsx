@@ -28,6 +28,37 @@ export default function AdminPage() {
   const [qOptionsRaw, setQOptionsRaw] = useState('');
   const [qPublished, setQPublished] = useState(true);
 
+  // Bulk import states
+  const [importMode, setImportMode] = useState<'single' | 'bulk'>('single');
+  const [bulkText, setBulkText] = useState('');
+  const [bulkError, setBulkError] = useState('');
+  const [bulkSuccess, setBulkSuccess] = useState('');
+
+  // Custom confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const triggerConfirmation = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
   useEffect(() => {
     const unsubStamps = onSnapshot(collection(db, 'stamps'), (snap) => {
       setStamps(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -71,7 +102,7 @@ export default function AdminPage() {
     setQQuestion(q.question || '');
     setQType(q.type || 'text');
     setQPlaceholder(q.placeholder || '');
-    setQOptionsRaw(q.options ? q.options.join(', ') : '');
+    setQOptionsRaw(q.options ? q.options.join(' - ') : '');
     setQPublished(q.published ?? true);
   };
 
@@ -89,7 +120,7 @@ export default function AdminPage() {
     if (!qLabel || !qQuestion) return;
     
     const options = qType === 'select' 
-      ? qOptionsRaw.split(',').map(s => s.trim()).filter(Boolean) 
+      ? qOptionsRaw.split('-').map(s => s.trim()).filter(Boolean) 
       : [];
       
     const id = editingQuestionId || Date.now().toString();
@@ -135,89 +166,203 @@ export default function AdminPage() {
     }
   };
 
-  const deleteQuestion = async (id: string) => {
-    if (confirm("Delete this inquiry? Registrants' answers to this question ID will remain in their document but may not be displayed in future clearance evaluations.")) {
-      const path = `questions/${id}`;
-      try {
-        await deleteDoc(doc(db, 'questions', id));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, path);
+  const deleteQuestion = (id: string) => {
+    triggerConfirmation(
+      "Delete Clearance Inquiry",
+      "Are you sure you want to delete this clearance inquiry? Registrants' answers to this question ID will remain in their document but may not be displayed in future clearance evaluations.",
+      async () => {
+        const path = `questions/${id}`;
+        try {
+          await deleteDoc(doc(db, 'questions', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, path);
+        }
       }
-    }
+    );
   };
 
-  const seedDefaultQuestions = async () => {
-    if (!confirm("Seed the 4 default clearance questions into Firestore?")) return;
-    
-    const defaults = [
-      {
-        id: 'q1',
-        label: 'Purpose of Entry',
-        question: 'State your primary objective for seeking archival endorsement and registry within our department.',
-        type: 'text',
-        placeholder: 'e.g., To pursue scientific research and contribute to local academic scholarship.',
+  const handleBulkImport = async () => {
+    setBulkError('');
+    setBulkSuccess('');
+    if (!bulkText.trim()) {
+      setBulkError('Please enter some questions to import.');
+      return;
+    }
+
+    // Split by "---" separator
+    const blocks = bulkText.split(/(?:\r?\n){0,2}-+-(?:\r?\n){0,2}/);
+    const parsedQuestions: any[] = [];
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i].trim();
+      if (!block) continue;
+
+      const lines = block.split(/\r?\n/);
+      const item: any = {
         published: true,
-        createdAt: new Date(Date.now() - 3000).toISOString()
-      },
-      {
-        id: 'q2',
-        label: 'Pledge of Diligence',
-        question: 'Do you solemnly pledge to uphold the rigorous standards of your chosen academic faculty with absolute integrity?',
-        type: 'select',
-        options: ['I so pledge', 'I decline to pledge'],
-        published: true,
-        createdAt: new Date(Date.now() - 2000).toISOString()
-      },
-      {
-        id: 'q3',
-        label: 'Specialized Attributes',
-        question: 'Describe any technical skills, linguistic proficiencies, or specialized capabilities you possess that warrant priority archival stamping.',
-        type: 'textarea',
-        placeholder: 'e.g., Fluent in classical languages, expert in systems analysis, 4 years of physical laboratory experience.',
-        published: true,
-        createdAt: new Date(Date.now() - 1000).toISOString()
-      },
-      {
-        id: 'q4',
-        label: 'Consent of Permanent Record',
-        question: 'Do you freely authorize the Department of Excellence to preserve your biometric portraiture and educational credentials in perpetuity?',
-        type: 'select',
-        options: ['Consent granted', 'Consent withheld'],
-        published: true,
-        createdAt: new Date().toISOString()
+        createdAt: new Date(Date.now() + i * 1000).toISOString()
+      };
+
+      let hasLabel = false;
+      let hasQuestion = false;
+
+      for (const line of lines) {
+        const match = line.match(/^([^:]+):\s*(.*)$/);
+        if (match) {
+          const key = match[1].trim().toLowerCase();
+          const val = match[2].trim();
+
+          if (key === 'label') {
+            item.label = val;
+            hasLabel = true;
+          } else if (key === 'question') {
+            item.question = val;
+            hasQuestion = true;
+          } else if (key === 'type') {
+            const typeVal = val.toLowerCase();
+            if (typeVal === 'select' || typeVal === 'mcq' || typeVal === 'choice' || typeVal === 'multiple choice') {
+              item.type = 'select';
+            } else if (typeVal === 'textarea' || typeVal === 'paragraph') {
+              item.type = 'textarea';
+            } else {
+              item.type = 'text';
+            }
+          } else if (key === 'choices' || key === 'options') {
+            item.options = val.split('-').map(s => s.trim()).filter(Boolean);
+          } else if (key === 'placeholder') {
+            item.placeholder = val;
+          }
+        }
       }
-    ];
+
+      if (hasLabel && hasQuestion) {
+        if (!item.type) item.type = 'text';
+        if (item.type === 'select') {
+          if (!item.options || item.options.length === 0) {
+            setBulkError(`Block ${i + 1} ("${item.label}") has 'select' type but no 'Choices' or 'Options' specified (use 'Choices: A - B - C').`);
+            return;
+          }
+          item.placeholder = '';
+        } else {
+          item.options = [];
+        }
+        parsedQuestions.push(item);
+      } else {
+        setBulkError(`Block ${i + 1} is missing a Label or Question field. Ensure each block has 'Label: ...' and 'Question: ...'.`);
+        return;
+      }
+    }
+
+    if (parsedQuestions.length === 0) {
+      setBulkError('No valid questions parsed. Please check the template format.');
+      return;
+    }
 
     try {
-      for (const q of defaults) {
-        await setDoc(doc(db, 'questions', q.id), q);
+      for (const q of parsedQuestions) {
+        const id = Date.now().toString() + Math.random().toString(36).substring(2, 7);
+        await setDoc(doc(db, 'questions', id), q);
       }
+      setBulkSuccess(`Successfully imported ${parsedQuestions.length} questions!`);
+      setBulkText('');
+      setTimeout(() => {
+        setImportMode('single');
+        setBulkSuccess('');
+      }, 1500);
     } catch (error) {
-      console.error("Error seeding questions:", error);
-      alert("Failed to seed questions: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Bulk upload error:", error);
+      setBulkError("Failed to save questions to database: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 
-  const toggleAdminRole = async (user: any) => {
+  const seedDefaultQuestions = () => {
+    triggerConfirmation(
+      "Seed Default Inquiries",
+      "Do you want to seed the 4 default clearance questions into Firestore? This will register the standard department inquiries for the user questionnaire.",
+      async () => {
+        const defaults = [
+          {
+            id: 'q1',
+            label: 'Purpose of Entry',
+            question: 'State your primary objective for seeking archival endorsement and registry within our department.',
+            type: 'text',
+            placeholder: 'e.g., To pursue scientific research and contribute to local academic scholarship.',
+            published: true,
+            createdAt: new Date(Date.now() - 3000).toISOString()
+          },
+          {
+            id: 'q2',
+            label: 'Pledge of Diligence',
+            question: 'Do you solemnly pledge to uphold the rigorous standards of your chosen academic faculty with absolute integrity?',
+            type: 'select',
+            options: ['I so pledge', 'I decline to pledge'],
+            published: true,
+            createdAt: new Date(Date.now() - 2000).toISOString()
+          },
+          {
+            id: 'q3',
+            label: 'Specialized Attributes',
+            question: 'Describe any technical skills, linguistic proficiencies, or specialized capabilities you possess that warrant priority archival stamping.',
+            type: 'textarea',
+            placeholder: 'e.g., Fluent in classical languages, expert in systems analysis, 4 years of physical laboratory experience.',
+            published: true,
+            createdAt: new Date(Date.now() - 1000).toISOString()
+          },
+          {
+            id: 'q4',
+            label: 'Consent of Permanent Record',
+            question: 'Do you freely authorize the Department of Excellence to preserve your biometric portraiture and educational credentials in perpetuity?',
+            type: 'select',
+            options: ['Consent granted', 'Consent withheld'],
+            published: true,
+            createdAt: new Date().toISOString()
+          }
+        ];
+
+        try {
+          for (const q of defaults) {
+            await setDoc(doc(db, 'questions', q.id), q);
+          }
+        } catch (error) {
+          console.error("Error seeding questions:", error);
+          setBulkError("Failed to seed questions: " + (error instanceof Error ? error.message : String(error)));
+        }
+      }
+    );
+  };
+
+  const toggleAdminRole = (user: any) => {
     const isAdminUser = admins.some(a => a.id === user.id);
     const path = `admins/${user.id}`;
     
-    try {
-      if (isAdminUser) {
-        if (confirm(`Revoke host access for ${user.name}?`)) {
-          await deleteDoc(doc(db, 'admins', user.id));
+    if (isAdminUser) {
+      triggerConfirmation(
+        "Revoke Host Access",
+        `Are you sure you want to revoke administrative host access for ${user.name}? They will lose permissions to manage users, stamps, and inquiries.`,
+        async () => {
+          try {
+            await deleteDoc(doc(db, 'admins', user.id));
+          } catch (error) {
+            handleFirestoreError(error, OperationType.UPDATE, path);
+          }
         }
-      } else {
-        if (confirm(`Grant host access to ${user.name}?`)) {
-          await setDoc(doc(db, 'admins', user.id), {
-            email: user.email,
-            role: 'host',
-            grantedAt: new Date().toISOString()
-          });
+      );
+    } else {
+      triggerConfirmation(
+        "Grant Host Access",
+        `Are you sure you want to grant administrative host access to ${user.name}? They will gain full permissions to manage stamps, inquiries, and user registries.`,
+        async () => {
+          try {
+            await setDoc(doc(db, 'admins', user.id), {
+              email: user.email,
+              role: 'host',
+              grantedAt: new Date().toISOString()
+            });
+          } catch (error) {
+            handleFirestoreError(error, OperationType.UPDATE, path);
+          }
         }
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      );
     }
   };
 
@@ -252,15 +397,19 @@ export default function AdminPage() {
     }
   };
 
-  const deleteStamp = async (id: string) => {
-    if (confirm("Delete this stamp?")) {
-      const path = `stamps/${id}`;
-      try {
-        await deleteDoc(doc(db, 'stamps', id));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, path);
+  const deleteStamp = (id: string) => {
+    triggerConfirmation(
+      "Delete Official Stamp",
+      "Are you sure you want to delete this official stamp? Any user possessing this stamp will still reference it, but its official insignia and designative label may be unavailable.",
+      async () => {
+        const path = `stamps/${id}`;
+        try {
+          await deleteDoc(doc(db, 'stamps', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, path);
+        }
       }
-    }
+    );
   };
 
   const toggleStampForUser = async (userId: string, stampId: string) => {
@@ -520,105 +669,210 @@ export default function AdminPage() {
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Form panel */}
-              <div className="lg:col-span-1 bg-[#fcfbf7] p-8 rounded border border-slate-200 shadow-sm self-start">
-                <h3 className="font-bold mb-6 flex items-center gap-3 text-slate-900 border-b border-slate-100 pb-4">
-                  <HelpCircle size={20} className="text-[#1a2d42]" strokeWidth={1.5} />
-                  <span className="uppercase tracking-widest text-xs">
-                    {editingQuestionId ? 'Edit Inquiry Specification' : 'New Inquiry Specification'}
-                  </span>
-                </h3>
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Label (Short title)</label>
-                    <input 
-                      type="text" 
-                      value={qLabel} 
-                      onChange={(e) => setQLabel(e.target.value)}
-                      placeholder="e.g., Purpose of Entry"
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Question text</label>
-                    <textarea 
-                      value={qQuestion} 
-                      onChange={(e) => setQQuestion(e.target.value)}
-                      placeholder="e.g., State your primary objective for seeking archival endorsement..."
-                      rows={3}
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Input Response Type</label>
-                    <select
-                      value={qType}
-                      onChange={(e: any) => setQType(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
-                    >
-                      <option value="text">Single Line Text Box</option>
-                      <option value="textarea">Multi-line Paragraph Field</option>
-                      <option value="select">Multiple Choice Selection</option>
-                    </select>
-                  </div>
-
-                  {qType !== 'select' ? (
-                    <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Placeholder Text (Optional)</label>
-                      <input 
-                        type="text" 
-                        value={qPlaceholder} 
-                        onChange={(e) => setQPlaceholder(e.target.value)}
-                        placeholder="e.g., Enter your purpose..."
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Options (Comma separated)</label>
-                      <input 
-                        type="text" 
-                        value={qOptionsRaw} 
-                        onChange={(e) => setQOptionsRaw(e.target.value)}
-                        placeholder="e.g., I so pledge, I decline to pledge"
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
-                      />
-                      <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wider">Separate values with commas</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 py-2">
-                    <input 
-                      type="checkbox" 
-                      id="qPublished" 
-                      checked={qPublished} 
-                      onChange={(e) => setQPublished(e.target.checked)}
-                      className="rounded text-[#d4af37] focus:ring-[#d4af37] border-slate-300 h-4 w-4"
-                    />
-                    <label htmlFor="qPublished" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest cursor-pointer select-none">
-                      Publish Immediately
-                    </label>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button 
-                      onClick={saveQuestion}
-                      disabled={!qLabel || !qQuestion}
-                      className="flex-1 py-3 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-md hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-[9px] border border-[#d4af37]/10"
-                    >
-                      {editingQuestionId ? 'Update Inquiry' : 'Add Inquiry'}
-                    </button>
-                    {editingQuestionId && (
-                      <button 
-                        onClick={cancelEditQuestion}
-                        className="px-4 py-3 bg-slate-200 text-slate-700 font-bold rounded hover:bg-slate-300 transition-all uppercase tracking-widest text-[9px]"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
+              <div className="lg:col-span-1 bg-[#fcfbf7] p-6 sm:p-8 rounded border border-slate-200 shadow-sm self-start">
+                {/* Single / Bulk Tab Toggles */}
+                <div className="flex gap-1.5 p-1 bg-slate-100 rounded border border-slate-200 mb-6">
+                  <button
+                    onClick={() => { setImportMode('single'); cancelEditQuestion(); }}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-widest text-center ${importMode === 'single' ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Single Specification
+                  </button>
+                  <button
+                    onClick={() => setImportMode('bulk')}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-widest text-center ${importMode === 'bulk' ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Bulk Import
+                  </button>
                 </div>
+
+                {importMode === 'single' ? (
+                  <>
+                    <h3 className="font-bold mb-6 flex items-center gap-3 text-slate-900 border-b border-slate-100 pb-4">
+                      <HelpCircle size={20} className="text-[#1a2d42]" strokeWidth={1.5} />
+                      <span className="uppercase tracking-widest text-xs">
+                        {editingQuestionId ? 'Edit Inquiry Specification' : 'New Inquiry Specification'}
+                      </span>
+                    </h3>
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Label (Short title)</label>
+                        <input 
+                          type="text" 
+                          value={qLabel} 
+                          onChange={(e) => setQLabel(e.target.value)}
+                          placeholder="e.g., Purpose of Entry"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Question text</label>
+                        <textarea 
+                          value={qQuestion} 
+                          onChange={(e) => setQQuestion(e.target.value)}
+                          placeholder="e.g., State your primary objective for seeking archival endorsement..."
+                          rows={3}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Input Response Type</label>
+                        <select
+                          value={qType}
+                          onChange={(e: any) => setQType(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
+                        >
+                          <option value="text">Single Line Text Box</option>
+                          <option value="textarea">Multi-line Paragraph Field</option>
+                          <option value="select">Multiple Choice Selection (MCQ)</option>
+                        </select>
+                      </div>
+
+                      {qType !== 'select' ? (
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Placeholder Text (Optional)</label>
+                          <input 
+                            type="text" 
+                            value={qPlaceholder} 
+                            onChange={(e) => setQPlaceholder(e.target.value)}
+                            placeholder="e.g., Enter your purpose..."
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Options (Hyphen separated)</label>
+                          <input 
+                            type="text" 
+                            value={qOptionsRaw} 
+                            onChange={(e) => setQOptionsRaw(e.target.value)}
+                            placeholder="e.g., Option 1 (Correct) - Option 2 - Option 3"
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs"
+                          />
+                          <p className="text-[8px] text-slate-500 mt-1 uppercase tracking-wider font-bold text-amber-800">
+                            * Note: First choice is correct. Choices are shuffled in user views.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 py-2">
+                        <input 
+                          type="checkbox" 
+                          id="qPublished" 
+                          checked={qPublished} 
+                          onChange={(e) => setQPublished(e.target.checked)}
+                          className="rounded text-[#d4af37] focus:ring-[#d4af37] border-slate-300 h-4 w-4"
+                        />
+                        <label htmlFor="qPublished" className="text-[10px] font-bold text-slate-600 uppercase tracking-widest cursor-pointer select-none">
+                          Publish Immediately
+                        </label>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <button 
+                          onClick={saveQuestion}
+                          disabled={!qLabel || !qQuestion}
+                          className="flex-1 py-3 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-md hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-[9px] border border-[#d4af37]/10"
+                        >
+                          {editingQuestionId ? 'Update Inquiry' : 'Add Inquiry'}
+                        </button>
+                        {editingQuestionId && (
+                          <button 
+                            onClick={cancelEditQuestion}
+                            className="px-4 py-3 bg-slate-200 text-slate-700 font-bold rounded hover:bg-slate-300 transition-all uppercase tracking-widest text-[9px]"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold mb-3 flex items-center gap-3 text-slate-900 border-b border-slate-100 pb-4">
+                      <Plus size={20} className="text-[#1a2d42]" strokeWidth={1.5} />
+                      <span className="uppercase tracking-widest text-xs">
+                        Bulk Upload Ledger
+                      </span>
+                    </h3>
+                    <p className="text-[9px] text-slate-500 leading-relaxed mb-4 uppercase tracking-wider font-sans">
+                      Paste multiple inquiries below separated by three hyphens (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">---</code>). 
+                      For multiple-choice (select) questions, specify the options with hyphens. <span className="font-bold text-amber-800">The FIRST option is marked correct</span> but will be shown shuffled to registrants.
+                    </p>
+
+                    <div className="space-y-4">
+                      <div className="bg-[#fcfbf7] border border-dashed border-slate-300 p-3 rounded mb-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[8px] font-bold text-[#d4af37] uppercase tracking-widest font-mono">Ledger Specification Template</span>
+                          <button
+                            onClick={() => {
+                              const templateStr = `Label: Purpose of Entry\nQuestion: State your primary objective for seeking archival endorsement.\nType: text\nPlaceholder: e.g., Academic Research\n\n---\n\nLabel: Pledge of Diligence\nQuestion: Do you solemnly pledge to uphold integrity?\nType: select\nChoices: I so pledge (Correct) - I decline to pledge\n\n---\n\nLabel: Registration Intention\nQuestion: Why do you wish to join?\nType: textarea\nPlaceholder: Detail your motivation...`;
+                              navigator.clipboard.writeText(templateStr);
+                              alert("Template copied to clipboard!");
+                            }}
+                            className="text-[8px] text-[#1a2d42] hover:underline uppercase font-bold tracking-widest"
+                          >
+                            Copy Template
+                          </button>
+                        </div>
+                        <pre className="text-[8px] leading-normal font-mono text-slate-600 overflow-x-auto whitespace-pre p-2 bg-slate-50 border border-slate-100 max-h-36">
+{`Label: Purpose of Entry
+Question: State your primary objective for seeking archival endorsement.
+Type: text
+Placeholder: e.g., Academic Research
+
+---
+
+Label: Pledge of Diligence
+Question: Do you solemnly pledge to uphold integrity?
+Type: select
+Choices: I so pledge (Correct) - I decline to pledge
+
+---
+
+Label: Registration Intention
+Question: Why do you wish to join?
+Type: textarea
+Placeholder: Detail your motivation...`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Paste Specifications Ledger</label>
+                        <textarea
+                          value={bulkText}
+                          onChange={(e) => setBulkText(e.target.value)}
+                          placeholder="Label: My Label..."
+                          rows={8}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-xs font-mono resize-y"
+                        />
+                      </div>
+
+                      {bulkError && (
+                        <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-[9px] uppercase tracking-wider font-mono rounded">
+                          {bulkError}
+                        </div>
+                      )}
+
+                      {bulkSuccess && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[9px] uppercase tracking-wider font-mono rounded">
+                          {bulkSuccess}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleBulkImport}
+                        disabled={!bulkText.trim()}
+                        className="w-full py-3.5 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-md hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-[9px] border border-[#d4af37]/10 flex items-center justify-center gap-2"
+                      >
+                        <Plus size={14} />
+                        <span>Import Ledger Specifications</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* List panel */}
@@ -668,12 +922,13 @@ export default function AdminPage() {
                             "{q.question}"
                           </p>
 
-                          {q.type === 'select' ? (
+                           {q.type === 'select' ? (
                             <div className="flex flex-wrap gap-1.5 items-center">
                               <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">Choices:</span>
                               {q.options?.map((opt: string, i: number) => (
-                                <span key={i} className="text-[9px] font-mono bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">
+                                <span key={i} className={`text-[9px] font-mono px-2 py-0.5 rounded flex items-center gap-1.5 ${i === 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold' : 'bg-white border border-slate-200 text-slate-600'}`}>
                                   {opt}
+                                  {i === 0 && <span className="text-[7px] bg-emerald-100 text-emerald-800 px-1 rounded font-sans tracking-wide uppercase font-bold">Correct</span>}
                                 </span>
                               ))}
                             </div>
@@ -811,6 +1066,47 @@ export default function AdminPage() {
               ))}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Confirmation Modal */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-[#fcfbf7] border border-slate-200 rounded max-w-md w-full p-6 shadow-2xl relative overflow-hidden"
+            >
+              {/* Retro top border line */}
+              <div className="absolute top-0 inset-x-0 h-1 bg-[#1a2d42]"></div>
+              
+              <h3 className="font-sans font-bold text-slate-900 uppercase tracking-widest text-[10px] mb-3 flex items-center gap-2">
+                <HelpCircle size={14} className="text-[#1a2d42]" />
+                {confirmModal.title}
+              </h3>
+              
+              <p className="text-xs text-slate-600 leading-relaxed font-sans mb-6">
+                {confirmModal.message}
+              </p>
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className="px-5 py-2.5 bg-red-800 text-white font-bold rounded text-[10px] uppercase tracking-widest hover:bg-red-900 shadow-md transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

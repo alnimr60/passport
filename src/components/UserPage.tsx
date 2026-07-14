@@ -34,6 +34,24 @@ export default function UserPage({ user }: { user: User }) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [answersSaving, setAnswersSaving] = useState(false);
+  const [shuffledOptions, setShuffledOptions] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const newShuffled: Record<string, string[]> = {};
+    questions.forEach(q => {
+      if (q.type === 'select' && q.options && q.options.length > 0) {
+        const opts = [...q.options];
+        for (let i = opts.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const temp = opts[i];
+          opts[i] = opts[j];
+          opts[j] = temp;
+        }
+        newShuffled[q.id] = opts;
+      }
+    });
+    setShuffledOptions(newShuffled);
+  }, [questions]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
@@ -145,12 +163,20 @@ export default function UserPage({ user }: { user: User }) {
     }
   };
 
-  const saveAnswers = async () => {
+  const submitSingleAnswer = async (qId: string) => {
+    const answerValue = answers[qId]?.trim() || '';
+    if (!answerValue) return;
+
     setAnswersSaving(true);
     const path = `users/${user.uid}`;
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        quizAnswers: answers,
+        quizAnswers: {
+          [qId]: answerValue
+        },
+        submittedQuestions: {
+          [qId]: true
+        },
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (error) {
@@ -294,69 +320,123 @@ export default function UserPage({ user }: { user: User }) {
                   <p className="text-sm text-slate-500 italic">No official clearance questions have been published yet.</p>
                 </div>
               ) : (
-                questions.map((q) => (
-                  <div key={q.id} className="space-y-2 border-b border-slate-100 pb-6 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-baseline gap-4">
-                      <span className="text-[10px] font-mono uppercase text-[#d4af37] font-bold tracking-wider">{q.label}</span>
-                      <span className="text-[9px] font-mono text-slate-400 uppercase">Field Ref: {q.id.toUpperCase().slice(0, 8)}</span>
+                questions.map((q) => {
+                  const isLocked = profile?.submittedQuestions?.[q.id] === true;
+                  const currentVal = answers[q.id] || '';
+                  const canSubmit = currentVal.trim().length > 0 && !isLocked;
+
+                  return (
+                    <div key={q.id} className="space-y-3.5 border-b border-slate-100 pb-6 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-baseline gap-4">
+                        <span className="text-[10px] font-mono uppercase text-[#d4af37] font-bold tracking-wider">{q.label}</span>
+                        <span className="text-[9px] font-mono text-slate-400 uppercase">Field Ref: {q.id.toUpperCase().slice(0, 8)}</span>
+                      </div>
+                      <label className="block text-sm font-bold text-slate-900 leading-tight mb-2 text-left">
+                        {q.question}
+                      </label>
+                      
+                      {q.type === 'select' ? (
+                        <div className="space-y-2 text-left">
+                          {(shuffledOptions[q.id] || q.options || []).map((opt: string) => {
+                            const isSelected = answers[q.id] === opt;
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                disabled={isLocked}
+                                onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                                className={`w-full text-left px-4 py-3.5 border rounded text-xs uppercase tracking-wider font-sans transition-all duration-200 flex items-center justify-between ${
+                                  isSelected 
+                                    ? 'bg-[#1a2d42] text-[#d4af37] border-[#1a2d42] font-semibold shadow-md' 
+                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                } ${isLocked ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}
+                              >
+                                <span>{opt}</span>
+                                {isSelected && <CheckCircle2 size={14} className="text-[#d4af37]" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : q.type === 'textarea' ? (
+                        <textarea
+                          value={answers[q.id] || ''}
+                          disabled={isLocked}
+                          onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                          rows={3}
+                          className={`w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans resize-none ${isLocked ? 'bg-slate-50 text-slate-500 cursor-not-allowed border-dashed' : ''}`}
+                          placeholder={q.placeholder}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={answers[q.id] || ''}
+                          disabled={isLocked}
+                          onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                          className={`w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans ${isLocked ? 'bg-slate-50 text-slate-500 cursor-not-allowed border-dashed' : ''}`}
+                          placeholder={q.placeholder}
+                        />
+                      )}
+
+                      {/* Individual question lock / submit button */}
+                      <div className="pt-2 flex items-center justify-between">
+                        {isLocked ? (
+                          <div className="flex items-center gap-2 text-[9px] text-emerald-800 font-mono font-bold uppercase tracking-wider bg-emerald-50 px-2.5 py-1.5 rounded border border-emerald-200">
+                            <CheckCircle2 size={12} className="text-emerald-700" />
+                            <span>Committed & Certified</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end w-full">
+                            <button
+                              type="button"
+                              onClick={() => submitSingleAnswer(q.id)}
+                              disabled={!canSubmit || answersSaving}
+                              className="px-5 py-2.5 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-md hover:bg-[#233b56] disabled:opacity-30 disabled:hover:bg-[#1a2d42] transition-all uppercase tracking-widest text-[9px] border border-[#d4af37]/20 flex items-center gap-1.5"
+                            >
+                              {answersSaving ? (
+                                <>
+                                  <Loader2 size={10} className="animate-spin" />
+                                  <span>Recording...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save size={10} />
+                                  <span>Submit & Certify</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <label className="block text-sm font-bold text-slate-900 leading-tight mb-2 text-left">
-                      {q.question}
-                    </label>
-                    
-                    {q.type === 'select' ? (
-                      <select
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm font-sans"
-                      >
-                        <option value="">-- SELECT RESPONSE --</option>
-                        {q.options?.map((opt: string) => (
-                          <option key={opt} value={opt}>{opt.toUpperCase()}</option>
-                        ))}
-                      </select>
-                    ) : q.type === 'textarea' ? (
-                      <textarea
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                        rows={3}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans resize-none"
-                        placeholder={q.placeholder}
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded focus:border-[#d4af37] outline-none transition-all text-sm placeholder:text-slate-300 font-sans"
-                        placeholder={q.placeholder}
-                      />
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
-            <div className="mt-10 pt-6 border-t border-slate-900/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono uppercase">
-                <FileText size={14} className="text-[#d4af37]" />
-                <span>ARCHIVAL DOCUMENT PENDING COMMIT</span>
-              </div>
-              <button
-                onClick={saveAnswers}
-                disabled={answersSaving || questionsLoading || questions.length === 0 || questions.some(q => !answers[q.id]?.trim())}
-                className="w-full sm:w-auto px-8 py-3.5 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-lg hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20 flex items-center justify-center gap-2"
-              >
-                {answersSaving ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Recording...</span>
-                  </>
-                ) : (
-                  <span>Commit Answers to Ledger</span>
-                )}
-              </button>
-            </div>
+            {(() => {
+              const submittedCount = questions.filter(q => profile?.submittedQuestions?.[q.id] === true).length;
+              const totalCount = questions.length;
+              const allSubmitted = totalCount > 0 && submittedCount === totalCount;
+
+              return (
+                <div className="mt-10 pt-6 border-t border-slate-900/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono uppercase">
+                    <FileText size={14} className="text-[#d4af37]" />
+                    <span>Ledger Progress: {submittedCount} of {totalCount} Certified</span>
+                  </div>
+                  {allSubmitted ? (
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 uppercase tracking-widest font-mono bg-emerald-50 border border-emerald-200 px-4 py-2 rounded">
+                      <CheckCircle2 size={14} className="text-emerald-700" />
+                      <span>Ledger Fully Certified</span>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 italic uppercase tracking-wider font-mono">
+                      * All fields must be certified to lock document evaluation
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </motion.div>
         ) : isProfileComplete ? (
           <motion.div 
