@@ -299,10 +299,10 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
 
               // Dynamically adjust max image sizing classes based on count
               const imgSizeClass = stampImages.length > 12 
-                ? "max-w-[75px] max-h-[60px] sm:max-w-[85px] sm:max-h-[70px]" 
+                ? "max-w-[75px] max-h-[60px] sm:max-w-[75px] sm:max-h-[60px]" 
                 : stampImages.length > 8 
-                  ? "max-w-[85px] max-h-[70px] sm:max-w-[100px] sm:max-h-[85px]" 
-                  : "max-w-[105px] max-h-[90px] sm:max-w-[125px] sm:max-h-[105px]";
+                  ? "max-w-[85px] max-h-[70px] sm:max-w-[85px] sm:max-h-[70px]" 
+                  : "max-w-[105px] max-h-[90px] sm:max-w-[105px] sm:max-h-[90px]";
 
               return (
                 <motion.div 
