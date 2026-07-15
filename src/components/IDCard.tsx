@@ -297,19 +297,19 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
               const stampOpacity = (isSelected && isDraggable) ? 0.95 : opacity;
               const stampScale = (isSelected && isDraggable) ? scale * 1.15 : scale;
 
-              // Use proportional width percentages so stamps scale perfectly with the passport
-              const stampWidthClass = stampImages.length > 12 
-                ? "w-[15%] sm:w-[12%]" 
+              // Dynamically adjust max image sizing classes based on count
+              const imgSizeClass = stampImages.length > 12 
+                ? "max-w-[75px] max-h-[60px] sm:max-w-[75px] sm:max-h-[60px]" 
                 : stampImages.length > 8 
-                  ? "w-[18%] sm:w-[15%]" 
-                  : "w-[22%] sm:w-[18%]";
+                  ? "max-w-[85px] max-h-[70px] sm:max-w-[85px] sm:max-h-[70px]" 
+                  : "max-w-[105px] max-h-[90px] sm:max-w-[105px] sm:max-h-[90px]";
 
               return (
                 <motion.div 
                   initial={{ scale: 0, rotate: -15, opacity: 0 }}
                   animate={{ scale: stampScale, rotate: rotation, opacity: stampOpacity }}
                   key={src + i} 
-                  className={`absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 select-none touch-none ${stampWidthClass} ${
+                  className={`absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2 select-none touch-none ${
                     isDraggable 
                       ? 'pointer-events-auto cursor-grab active:cursor-grabbing hover:z-40' 
                       : 'pointer-events-none'
@@ -329,7 +329,7 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                   <img 
                     src={src} 
                     alt="Stamp" 
-                    className="w-full h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none pointer-events-none"
+                    className={`${imgSizeClass} w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none pointer-events-none`}
                   />
                   {isSelected && isDraggable && (
                     <div className="absolute -top-6 bg-[#1a2d42] text-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap uppercase tracking-widest border border-[#d4af37]/20">
