@@ -66,6 +66,7 @@ export default function UserPage({ user }: { user: User }) {
   const [activeStampId, setActiveStampId] = useState<string | null>(null);
   const [activeLayoutDevice, setActiveLayoutDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [savingPositions, setSavingPositions] = useState(false);
+  const [isStampDragEnabled, setIsStampDragEnabled] = useState(false);
 
   useEffect(() => {
     const newShuffled: Record<string, string[]> = {};
@@ -149,39 +150,18 @@ export default function UserPage({ user }: { user: User }) {
     fetchUserStamps();
   }, [profile?.assignedStamps]);
 
-  const handleSliderChange = (stampId: string, axis: 'x' | 'y', value: number) => {
-    setLocalStampPositions(prev => {
-      const stampConfig = prev[stampId] || {};
-      const deviceConfig = stampConfig[activeLayoutDevice] || {};
-      
-      const activeStampIdx = profile?.assignedStamps?.indexOf(stampId) ?? 0;
-      const defaultSpots = activeLayoutDevice === 'mobile' ? baseSpotsMobile : baseSpotsDesktop;
-      const defaultSpot = defaultSpots[activeStampIdx % defaultSpots.length];
-      
-      const startX = deviceConfig.x ?? defaultSpot.x;
-      const startY = deviceConfig.y ?? defaultSpot.y;
-      
-      return {
-        ...prev,
-        [stampId]: {
-          ...stampConfig,
-          [activeLayoutDevice]: {
-            x: axis === 'x' ? value : startX,
-            y: axis === 'y' ? value : startY
-          }
-        }
-      };
-    });
-  };
 
-  const handleStampDragMove = (stampId: string, x: number, y: number) => {
+
+  const handleStampDragMove = (stampId: string, x: number, y: number, isMobileLayout: boolean) => {
+    const layoutDeviceKey = isMobileLayout ? 'mobile' : 'desktop';
+    setActiveLayoutDevice(layoutDeviceKey);
     setLocalStampPositions(prev => {
       const stampConfig = prev[stampId] || {};
       return {
         ...prev,
         [stampId]: {
           ...stampConfig,
-          [activeLayoutDevice]: { x, y }
+          [layoutDeviceKey]: { x, y }
         }
       };
     });
@@ -198,6 +178,7 @@ export default function UserPage({ user }: { user: User }) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
     } finally {
       setSavingPositions(false);
+      setIsStampDragEnabled(false);
     }
   };
 
@@ -570,9 +551,9 @@ export default function UserPage({ user }: { user: User }) {
                 photo={photo}
                 stamps={profile?.assignedStamps || []}
                 stampPositions={localStampPositions}
-                onStampMove={step === 3 ? handleStampDragMove : undefined}
-                activeStampId={step === 3 ? activeStampId : null}
-                setActiveStampId={step === 3 ? setActiveStampId : undefined}
+                onStampMove={isStampDragEnabled ? handleStampDragMove : undefined}
+                activeStampId={isStampDragEnabled ? activeStampId : null}
+                setActiveStampId={isStampDragEnabled ? setActiveStampId : undefined}
               />
             </div>
           </motion.div>
@@ -649,7 +630,7 @@ export default function UserPage({ user }: { user: User }) {
                         onClick={() => setStep(3)}
                         className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 3 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
                       >
-                        Stamp Placer
+                        Stamp Layout
                       </button>
                     )}
                   </div>
@@ -794,11 +775,11 @@ export default function UserPage({ user }: { user: User }) {
                         <div>
                           <h4 className="text-sm font-bold text-[#1a2d42] uppercase tracking-wider mb-1">Stamp Position Control</h4>
                           <p className="text-[10px] text-slate-400 italic">Adjust horizontal and vertical coordinate parameters of your assigned stamps.</p>
-                          <div className="mt-3 bg-[#fdfaf2] border border-[#d4af37]/30 rounded p-2 text-[9px] text-[#9a7d28] flex items-start gap-1.5 leading-normal">
+                          <div className={`mt-3 border rounded p-2 text-[9px] flex items-start gap-1.5 leading-normal ${isStampDragEnabled ? 'bg-[#fdfaf2] border-[#d4af37]/30 text-[#9a7d28]' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
                             <span className="text-[11px] leading-none">💡</span>
                             <div>
-                              <span className="font-bold uppercase tracking-wider block text-[8px] mb-0.5">Interactive Canvas Active</span>
-                              Click and drag any stamp directly on the passport card layout to reposition it seamlessly!
+                              <span className="font-bold uppercase tracking-wider block text-[8px] mb-0.5">{isStampDragEnabled ? 'Interactive Canvas Active' : 'Interactive Canvas Disabled'}</span>
+                              {isStampDragEnabled ? 'Click and drag any stamp directly on the passport card layout to reposition it seamlessly!' : 'Enable drag & drop to reposition your stamps directly on the canvas.'}
                             </div>
                           </div>
                         </div>
@@ -811,184 +792,48 @@ export default function UserPage({ user }: { user: User }) {
                           </div>
                         ) : (
                           <div className="space-y-6">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">1. Select Stamp</label>
-                              <div className="grid grid-cols-4 gap-2">
-                                {userStampsDetails.map((stamp) => {
-                                  const isSelected = activeStampId === stamp.id;
-                                  return (
-                                    <button
-                                      key={stamp.id}
-                                      type="button"
-                                      onClick={() => setActiveStampId(stamp.id)}
-                                      className={`p-2 rounded border flex flex-col items-center justify-center transition-all ${
-                                        isSelected 
-                                          ? 'border-[#d4af37] bg-[#fdfaf2] ring-1 ring-[#d4af37]' 
-                                          : 'border-slate-200 bg-white hover:border-slate-300'
-                                      }`}
-                                    >
-                                      <img 
-                                        src={stamp.imageUrl} 
-                                        alt={stamp.name} 
-                                        className={`w-8 h-8 object-contain transition-all ${isSelected ? '' : 'opacity-60'}`}
-                                      />
-                                      <span className="text-[8px] font-bold text-slate-500 mt-1 truncate w-full text-center">
-                                        {stamp.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setIsStampDragEnabled(!isStampDragEnabled)}
+                                className={`flex-1 py-3 border font-bold rounded text-[10px] uppercase tracking-wider transition-all ${
+                                  isStampDragEnabled 
+                                    ? 'border-[#d4af37] bg-[#fdfaf2] text-[#d4af37]' 
+                                    : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                                }`}
+                              >
+                                {isStampDragEnabled ? 'Disable Movement' : 'Enable Movement'}
+                              </button>
+                            </div>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm("Reset all stamp custom positions to their defaults?")) {
+                                    setLocalStampPositions({});
+                                  }
+                                }}
+                                className="flex-1 py-3 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                              >
+                                Reset All To Defaults
+                              </button>
                             </div>
 
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">2. Target Device View</label>
-                              <div className="flex gap-1 p-1 bg-slate-100 rounded border border-slate-200">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveLayoutDevice('desktop')}
-                                  className={`flex-1 py-1.5 text-[9px] font-bold rounded transition-all uppercase tracking-wider ${
-                                    activeLayoutDevice === 'desktop' 
-                                      ? 'bg-white shadow text-[#1a2d42]' 
-                                      : 'text-slate-400'
-                                  }`}
-                                >
-                                  Desktop Layout
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveLayoutDevice('mobile')}
-                                  className={`flex-1 py-1.5 text-[9px] font-bold rounded transition-all uppercase tracking-wider ${
-                                    activeLayoutDevice === 'mobile' 
-                                      ? 'bg-white shadow text-[#1a2d42]' 
-                                      : 'text-slate-400'
-                                  }`}
-                                >
-                                  Mobile Layout
-                                </button>
-                              </div>
-                            </div>
-
-                            {(() => {
-                              const activeStampIdx = profile?.assignedStamps?.indexOf(activeStampId) ?? 0;
-                              const defaultSpots = activeLayoutDevice === 'mobile' ? baseSpotsMobile : baseSpotsDesktop;
-                              const defaultSpot = defaultSpots[activeStampIdx % defaultSpots.length];
-
-                              const currentStampConfig = localStampPositions[activeStampId || '']?.[activeLayoutDevice];
-                              const currentX = currentStampConfig?.x ?? defaultSpot.x;
-                              const currentY = currentStampConfig?.y ?? defaultSpot.y;
-                              const isCustomized = !!currentStampConfig;
-
-                              return (
-                                <div className="space-y-6">
-                                  <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Coordinate Configuration</label>
-                                      <span className={`text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                        isCustomized ? 'bg-[#fdfaf2] text-[#d4af37] border border-[#d4af37]/20' : 'bg-slate-100 text-slate-400'
-                                      }`}>
-                                        {isCustomized ? 'Customized' : 'Default Auto'}
-                                      </span>
-                                    </div>
-
-                                    {/* X Slider */}
-                                    <div className="bg-white p-4 rounded border border-slate-200 space-y-2">
-                                      <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                                        <span>HORIZONTAL POSITION (X)</span>
-                                        <span className="font-mono text-slate-400">{currentX}%</span>
-                                      </div>
-                                      <input
-                                        type="range"
-                                        min="5"
-                                        max="95"
-                                        value={currentX}
-                                        onChange={(e) => handleSliderChange(activeStampId!, 'x', parseInt(e.target.value))}
-                                        className="w-full accent-[#1a2d42] h-1 bg-slate-100 rounded-lg cursor-pointer"
-                                      />
-                                      <div className="flex justify-between text-[8px] text-slate-400 font-medium font-mono">
-                                        <span>LEFT</span>
-                                        <span>RIGHT</span>
-                                      </div>
-                                    </div>
-
-                                    {/* Y Slider */}
-                                    <div className="bg-white p-4 rounded border border-slate-200 space-y-2">
-                                      <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                                        <span>VERTICAL POSITION (Y)</span>
-                                        <span className="font-mono text-slate-400">{currentY}%</span>
-                                      </div>
-                                      <input
-                                        type="range"
-                                        min="12"
-                                        max={activeLayoutDevice === 'mobile' ? 89 : 82}
-                                        value={currentY}
-                                        onChange={(e) => handleSliderChange(activeStampId!, 'y', parseInt(e.target.value))}
-                                        className="w-full accent-[#1a2d42] h-1 bg-slate-100 rounded-lg cursor-pointer"
-                                      />
-                                      <div className="flex justify-between text-[8px] text-slate-400 font-medium font-mono">
-                                        <span>TOP</span>
-                                        <span>BOTTOM</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex gap-3">
-                                    {isCustomized && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setLocalStampPositions(prev => {
-                                            const next = { ...prev };
-                                            if (next[activeStampId!]) {
-                                              const copy = { ...next[activeStampId!] };
-                                              delete copy[activeLayoutDevice];
-                                              if (Object.keys(copy).length === 0) {
-                                                delete next[activeStampId!];
-                                              } else {
-                                                next[activeStampId!] = copy;
-                                              }
-                                            }
-                                            return next;
-                                          });
-                                        }}
-                                        className="flex-1 py-3 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
-                                      >
-                                        Reset Stamp
-                                      </button>
-                                    )}
-                                    {Object.keys(localStampPositions).length > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (confirm("Reset all stamp custom positions to their defaults?")) {
-                                            setLocalStampPositions({});
-                                          }
-                                        }}
-                                        className="flex-1 py-3 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
-                                      >
-                                        Reset All
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    disabled={savingPositions}
-                                    onClick={handleSavePositions}
-                                    className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
-                                  >
-                                    {savingPositions ? (
-                                      <Loader2 className="animate-spin text-[#d4af37]" />
-                                    ) : (
-                                      <>
-                                        <Save size={14} />
-                                        Save Layout Coordinates
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              );
-                            })()}
+                            <button
+                              type="button"
+                              disabled={savingPositions}
+                              onClick={handleSavePositions}
+                              className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
+                            >
+                              {savingPositions ? (
+                                <Loader2 className="animate-spin text-[#d4af37]" />
+                              ) : (
+                                <>
+                                  <Save size={14} />
+                                  Save Stamp Layout
+                                </>
+                              )}
+                            </button>
                           </div>
                         )}
                       </motion.div>

@@ -17,7 +17,7 @@ interface IDCardProps {
     desktop?: { x: number; y: number };
     mobile?: { x: number; y: number };
   }>;
-  onStampMove?: (stampId: string, x: number, y: number) => void;
+  onStampMove?: (stampId: string, x: number, y: number, isMobileLayout: boolean) => void;
   activeStampId?: string | null;
   setActiveStampId?: (id: string | null) => void;
 }
@@ -62,12 +62,17 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
     }
 
     event.preventDefault();
-    
-    const cardElement = cardRef.current;
-    if (!cardElement) return;
-    const rect = cardElement.getBoundingClientRect();
+    const target = event.currentTarget;
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch (e) {
+      console.warn("Failed to set pointer capture:", e);
+    }
     
     const handlePointerMove = (moveEvent: PointerEvent) => {
+      const cardElement = cardRef.current;
+      if (!cardElement) return;
+      const rect = cardElement.getBoundingClientRect();
       const xPx = moveEvent.clientX - rect.left;
       const yPx = moveEvent.clientY - rect.top;
       
@@ -79,16 +84,21 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
       const maxTop = isMobile ? 89 : 82;
       yPercent = Math.max(0, Math.min(maxTop, yPercent));
       
-      onStampMove(stampId, xPercent, yPercent);
+      onStampMove(stampId, xPercent, yPercent, isMobile);
     };
     
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch (e) {}
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
     
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   // Generate MRZ line
@@ -289,10 +299,10 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
 
               // Dynamically adjust max image sizing classes based on count
               const imgSizeClass = stampImages.length > 12 
-                ? "max-w-[65px] max-h-[50px] sm:max-w-[85px] sm:max-h-[70px]" 
+                ? "max-w-[75px] max-h-[60px] sm:max-w-[85px] sm:max-h-[70px]" 
                 : stampImages.length > 8 
-                  ? "max-w-[75px] max-h-[60px] sm:max-w-[100px] sm:max-h-[85px]" 
-                  : "max-w-[90px] max-h-[75px] sm:max-w-[125px] sm:max-h-[105px]";
+                  ? "max-w-[85px] max-h-[70px] sm:max-w-[100px] sm:max-h-[85px]" 
+                  : "max-w-[105px] max-h-[90px] sm:max-w-[125px] sm:max-h-[105px]";
 
               return (
                 <motion.div 
@@ -311,14 +321,15 @@ export default function IDCard({ name, nationality, birthDate, address, faculty,
                   style={{ 
                     left: `${leftPercent}%`,
                     top: `${topPercent}%`,
-                    transformOrigin: '50% 50%'
+                    transformOrigin: '50% 50%',
+                    touchAction: 'none'
                   }}
                   onPointerDown={isDraggable ? (e) => handleStampDragStart(stampId, e) : undefined}
                 >
                   <img 
                     src={src} 
                     alt="Stamp" 
-                    className={`${imgSizeClass} w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none`}
+                    className={`${imgSizeClass} w-auto h-auto object-contain filter mix-blend-multiply brightness-[0.82] contrast-[1.15] saturate-[1.2] select-none pointer-events-none`}
                   />
                   {isSelected && isDraggable && (
                     <div className="absolute -top-6 bg-[#1a2d42] text-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap uppercase tracking-widest border border-[#d4af37]/20">
