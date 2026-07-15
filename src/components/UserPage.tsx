@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
-import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download, FileText, HelpCircle, Shield } from 'lucide-react';
+import { Camera, Save, LogOut, ChevronRight, CheckCircle2, LayoutDashboard, Settings, X, Loader2, Plus, Download, FileText, HelpCircle, Shield, Stamp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import IDCard from './IDCard';
 import { toPng } from 'html-to-image';
@@ -67,6 +67,15 @@ export default function UserPage({ user }: { user: User }) {
   const [activeLayoutDevice, setActiveLayoutDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [savingPositions, setSavingPositions] = useState(false);
   const [isStampDragEnabled, setIsStampDragEnabled] = useState(false);
+
+  const toggleStampMovement = async () => {
+    if (isStampDragEnabled) {
+      setIsStampDragEnabled(false);
+      await handleSavePositions();
+    } else {
+      setIsStampDragEnabled(true);
+    }
+  };
 
   useEffect(() => {
     const newShuffled: Record<string, string[]> = {};
@@ -304,13 +313,29 @@ export default function UserPage({ user }: { user: User }) {
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           {isProfileComplete && (
-            <button 
-              onClick={downloadID}
-              className="p-2.5 sm:p-3 bg-white text-slate-600 rounded shadow hover:bg-slate-50 transition-all border border-slate-200 group"
-              title="Download Document"
-            >
-              <Download size={18} className="text-[#d4af37] group-hover:scale-110 transition-transform" />
-            </button>
+            <>
+              <button 
+                onClick={toggleStampMovement}
+                className={`p-2.5 sm:p-3 rounded shadow transition-all border group relative ${
+                  isStampDragEnabled
+                    ? 'bg-[#fdfaf2] text-[#d4af37] border-[#d4af37]/40 ring-1 ring-[#d4af37]/30'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+                title="Stamp Layout Options"
+              >
+                <Stamp size={18} className={`${isStampDragEnabled ? 'text-[#d4af37]' : 'text-[#1a2d42]'} group-hover:scale-110 transition-transform`} />
+                {isStampDragEnabled && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white shadow-sm" />
+                )}
+              </button>
+              <button 
+                onClick={downloadID}
+                className="p-2.5 sm:p-3 bg-white text-slate-600 rounded shadow hover:bg-slate-50 transition-all border border-slate-200 group"
+                title="Download Document"
+              >
+                <Download size={18} className="text-[#d4af37] group-hover:scale-110 transition-transform" />
+              </button>
+            </>
           )}
           <button 
             onClick={() => setShowEditor(true)}
@@ -625,14 +650,6 @@ export default function UserPage({ user }: { user: User }) {
                     >
                       Validation
                     </button>
-                    {isProfileComplete && (
-                      <button 
-                        onClick={() => setStep(3)}
-                        className={`flex-1 py-2 text-[10px] font-bold rounded transition-all uppercase tracking-tighter ${step === 3 ? 'bg-white shadow text-[#1a2d42]' : 'text-slate-400'}`}
-                      >
-                        Stamp Layout
-                      </button>
-                    )}
                   </div>
 
                   <AnimatePresence mode="wait">
@@ -761,81 +778,6 @@ export default function UserPage({ user }: { user: User }) {
                         >
                           Close Archive
                         </button>
-                      </motion.div>
-                    )}
-
-                    {step === 3 && isProfileComplete && (
-                      <motion.div
-                        key="step3"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                      >
-                        <div>
-                          <h4 className="text-sm font-bold text-[#1a2d42] uppercase tracking-wider mb-1">Stamp Position Control</h4>
-                          <p className="text-[10px] text-slate-400 italic">Adjust horizontal and vertical coordinate parameters of your assigned stamps.</p>
-                          <div className={`mt-3 border rounded p-2 text-[9px] flex items-start gap-1.5 leading-normal ${isStampDragEnabled ? 'bg-[#fdfaf2] border-[#d4af37]/30 text-[#9a7d28]' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                            <span className="text-[11px] leading-none">💡</span>
-                            <div>
-                              <span className="font-bold uppercase tracking-wider block text-[8px] mb-0.5">{isStampDragEnabled ? 'Interactive Canvas Active' : 'Interactive Canvas Disabled'}</span>
-                              {isStampDragEnabled ? 'Click and drag any stamp directly on the passport card layout to reposition it seamlessly!' : 'Enable drag & drop to reposition your stamps directly on the canvas.'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {userStampsDetails.length === 0 ? (
-                          <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded p-6">
-                            <HelpCircle size={32} className="mx-auto text-slate-300 mb-2" />
-                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">No Assigned Stamps</p>
-                            <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">No official clearance stamps have been assigned to your record by the administration. Ask an admin to assign stamps to configure their placement.</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-6">
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setIsStampDragEnabled(!isStampDragEnabled)}
-                                className={`flex-1 py-3 border font-bold rounded text-[10px] uppercase tracking-wider transition-all ${
-                                  isStampDragEnabled 
-                                    ? 'border-[#d4af37] bg-[#fdfaf2] text-[#d4af37]' 
-                                    : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-                                }`}
-                              >
-                                {isStampDragEnabled ? 'Disable Movement' : 'Enable Movement'}
-                              </button>
-                            </div>
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (confirm("Reset all stamp custom positions to their defaults?")) {
-                                    setLocalStampPositions({});
-                                  }
-                                }}
-                                className="flex-1 py-3 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded text-[10px] uppercase tracking-wider transition-all"
-                              >
-                                Reset All To Defaults
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              disabled={savingPositions}
-                              onClick={handleSavePositions}
-                              className="w-full flex items-center justify-center gap-2 py-4 bg-[#1a2d42] text-[#d4af37] font-bold rounded shadow-xl hover:bg-[#233b56] disabled:opacity-50 transition-all uppercase tracking-widest text-xs border border-[#d4af37]/20"
-                            >
-                              {savingPositions ? (
-                                <Loader2 className="animate-spin text-[#d4af37]" />
-                              ) : (
-                                <>
-                                  <Save size={14} />
-                                  Save Stamp Layout
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
